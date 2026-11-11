@@ -83,7 +83,8 @@ export class AnthropicCounter implements Counter {
       mode: 'anthropic',
       unit: 'Claude tokens',
       label: `Anthropic count_tokens API, model ${this.#options.model}: request with the tools minus request without`,
-      exact: true,
+      tokenizer: 'anthropic-count_tokens',
+      billed: false,
       model: this.#options.model,
     };
   }

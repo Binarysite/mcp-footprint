@@ -12,7 +12,7 @@ import type { ToolDefinition } from '../src/serialize.js';
 
 /** Counts one token per character of the tool name times 10, so expected values are obvious. */
 class FakeCounter implements Counter {
-  readonly info: CounterInfo = { mode: 'o200k', unit: 'fake tokens', label: 'a fake counter', exact: true };
+  readonly info: CounterInfo = { mode: 'o200k', unit: 'fake tokens', label: 'a fake counter', tokenizer: 'o200k_base', billed: false };
   constructor(readonly overhead = 0) {}
   countTools(definitions: readonly ToolDefinition[]): Promise<ToolCounts> {
     const perTool = definitions.map((d) => d.name.length * 10);

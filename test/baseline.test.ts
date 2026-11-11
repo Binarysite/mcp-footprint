@@ -31,7 +31,7 @@ function capture(): Io & { out: string; err: string } {
 function report(tools: Record<string, number>, mode: Report['counter']['mode'] = 'o200k'): Report {
   const list = Object.entries(tools).map(([name, tokens]) => ({ name, tokens }));
   return {
-    counter: { mode, unit: 'o200k tokens', label: 'x', exact: true },
+    counter: { mode, unit: 'o200k tokens', label: 'x', tokenizer: 'o200k_base', billed: false },
     total: { tools: list.length, tokens: list.reduce((sum, t) => sum + t.tokens, 0), chars: 0, pages: null },
     tools: list,
   } as unknown as Report;
@@ -134,4 +134,22 @@ test('without --baseline the report has baseline: null and no baseline line', as
   const plain = JSON.parse(io.out) as Report;
   assert.equal(plain.baseline, null);
   assert.doesNotMatch(renderText(plain), /baseline/);
+});
+
+test('diff: tools that share a name are compared one to one, not collapsed', () => {
+  const list = (tokens: number[]): Report =>
+    ({
+      counter: { mode: 'o200k', unit: 'o200k tokens', label: 'x', tokenizer: 'o200k_base', billed: false },
+      total: { tools: tokens.length, tokens: tokens.reduce((a, b) => a + b, 0), chars: 0, pages: null },
+      tools: tokens.map((t) => ({ name: 'dup', tokens: t })),
+    }) as unknown as Report;
+  // Collapsed by name, the last "dup" wins and a 100 -> 100 + 50 growth looks like 50 -> 50.
+  const grown = diffBaseline(list([100]), list([100, 50]), 'b.json');
+  assert.deepEqual(grown.added, [{ name: 'dup', tokens: 50 }]);
+  assert.deepEqual(grown.changed, []);
+  const shrunk = diffBaseline(list([100, 50]), list([100]), 'b.json');
+  assert.deepEqual(shrunk.removed, [{ name: 'dup', tokens: 50 }]);
+  const edited = diffBaseline(list([100, 50]), list([100, 70]), 'b.json');
+  assert.deepEqual(edited.changed, [{ name: 'dup', before: 50, after: 70, delta: 20 }]);
+  assert.equal(diffBaseline(list([100, 50]), list([100, 50]), 'b.json').changed.length, 0);
 });
