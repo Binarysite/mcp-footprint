@@ -216,3 +216,15 @@ test('a tool definition over 64 KB serialized is refused before counting', async
   const fits = { ...huge, description: 'a'.repeat(MAX_TOOL_BYTES - 100) };
   assert.equal((await measure({ ...input, tools: [fits] }, new FakeCounter())).total.tools, 1);
 });
+
+test('duplicate tool names are a warning in the report', async () => {
+  const tools = [
+    { name: 'dup', inputSchema: { type: 'object' } },
+    { name: 'dup', description: 'again', inputSchema: { type: 'object' } },
+    { name: 'solo', inputSchema: { type: 'object' } },
+  ];
+  const report = await measure({ ...input, tools }, new FakeCounter());
+  assert.deepEqual(report.warnings, ['2 tools are named "dup"; a client may reject the server or keep only one of them']);
+  assert.match(renderText(report), /\nwarning: 2 tools are named "dup"; a client may reject the server or keep only one of them\n$/);
+  assert.deepEqual((await measure(input, new FakeCounter())).warnings, []);
+});

@@ -31,12 +31,17 @@ Options:
                        once stdin is closed and 200 ms after SIGTERM, then
                        SIGKILL: the run ends within about --timeout + 0.5 s
   --model <id>         model for --count anthropic (default ${DEFAULT_ANTHROPIC_MODEL})
+  --experimental       allow --count anthropic (see below)
   --verbose            pass the server's stderr through
   -h, --help           show this help
   -v, --version        show the version
 
+o200k counts are a size to compare servers by and budget against, not what
+any provider bills: each one renders tools into its own format first.
+
 --count anthropic calls POST /v1/messages/count_tokens and needs
-ANTHROPIC_API_KEY. ANTHROPIC_BASE_URL overrides the API host.
+ANTHROPIC_API_KEY and --experimental: it has been tested against a mocked
+API only, never the live endpoint. ANTHROPIC_BASE_URL overrides the API host.
 
 Exit codes: 0 ok, 1 over budget, 2 usage, server or API error, 130 interrupted.
 `;
@@ -61,6 +66,7 @@ interface Options {
   timeoutMs: number;
   model: string;
   verbose: boolean;
+  experimental: boolean;
   fromJson?: string;
   command: string[];
 }
@@ -88,6 +94,7 @@ export function parseCli(argv: readonly string[]): Parsed {
         timeout: { type: 'string', default: '30000' },
         model: { type: 'string', default: DEFAULT_ANTHROPIC_MODEL },
         verbose: { type: 'boolean', default: false },
+        experimental: { type: 'boolean', default: false },
         'from-json': { type: 'string' },
         help: { type: 'boolean', short: 'h', default: false },
         version: { type: 'boolean', short: 'v', default: false },
@@ -106,6 +113,12 @@ export function parseCli(argv: readonly string[]): Parsed {
   if (fromJson !== undefined && command.length > 0) throw new UsageError('use either --from-json or -- <command>, not both');
   if (fromJson === undefined && command.length === 0) throw new UsageError('nothing to measure: give -- <command> or --from-json <file>');
   if (fromJson !== undefined && values['save-tools'] !== undefined) throw new UsageError('--save-tools needs a server, not --from-json');
+  if (count === 'anthropic' && !values.experimental) {
+    throw new UsageError(
+      '--count anthropic is experimental: it has been tested against a mocked API only, never against the live endpoint, so its numbers are unverified. To use it anyway, add --experimental.',
+    );
+  }
+  if (count !== 'anthropic' && values.experimental) throw new UsageError('--experimental only applies to --count anthropic');
 
   return {
     kind: 'run',
@@ -115,6 +128,7 @@ export function parseCli(argv: readonly string[]): Parsed {
       timeoutMs: positiveInteger(values.timeout, '--timeout'),
       model: values.model,
       verbose: values.verbose,
+      experimental: values.experimental,
       command,
       ...(values.budget !== undefined && { budget: nonNegativeInteger(values.budget, '--budget') }),
       ...(values.out !== undefined && { out: values.out }),

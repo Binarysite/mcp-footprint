@@ -46,28 +46,20 @@ export async function collectFromServer(options: CollectOptions): Promise<Collec
     // connect() starts the transport, then runs the initialize handshake.
     await session.step('initialize', () => client.connect(transport, session.requestOptions()));
     const capabilities = client.getServerCapabilities() ?? {};
-    const tools = await session.step('tools/list', () =>
-      paginate('tools/list', async (cursor) => {
-        const page = await client.request({ method: 'tools/list', params: cursorParams(cursor) }, session.requestOptions());
-        return { items: page.tools, nextCursor: page.nextCursor };
-      }),
-    );
-    const prompts = capabilities.prompts
-      ? await session.step('prompts/list', () =>
-          paginate('prompts/list', async (cursor) => {
-            const page = await client.request({ method: 'prompts/list', params: cursorParams(cursor) }, session.requestOptions());
-            return { items: page.prompts, nextCursor: page.nextCursor };
-          }),
-        )
-      : null;
-    const resources = capabilities.resources
-      ? await session.step('resources/list', () =>
-          paginate('resources/list', async (cursor) => {
-            const page = await client.request({ method: 'resources/list', params: cursorParams(cursor) }, session.requestOptions());
-            return { items: page.resources, nextCursor: page.nextCursor };
-          }),
-        )
-      : null;
+    /** Runs one list method as a session step, following its pages. */
+    const list = <T>(method: ListMethod, pick: (page: ListResult) => T[]): Promise<{ items: T[]; pages: number }> =>
+      session.step(method, () =>
+        paginate(method, async (cursor) => {
+          const page = (await client.request(
+            { method, params: cursor === undefined ? {} : { cursor } },
+            session.requestOptions(),
+          )) as ListResult;
+          return { items: pick(page), nextCursor: page.nextCursor };
+        }),
+      );
+    const tools = await list('tools/list', (page) => page.tools ?? []);
+    const prompts = capabilities.prompts ? await list('prompts/list', (page) => page.prompts ?? []) : null;
+    const resources = capabilities.resources ? await list('resources/list', (page) => page.resources ?? []) : null;
     failed = false;
     return {
       server: client.getServerVersion() ?? null,
@@ -91,8 +83,14 @@ interface Page<T> {
   nextCursor?: string | undefined;
 }
 
-function cursorParams(cursor: string | undefined): { cursor?: string } {
-  return cursor === undefined ? {} : { cursor };
+type ListMethod = 'tools/list' | 'prompts/list' | 'resources/list';
+
+/** The union of the three list results; the SDK has already validated the one that arrived. */
+interface ListResult {
+  tools?: Tool[];
+  prompts?: Prompt[];
+  resources?: Resource[];
+  nextCursor?: string | undefined;
 }
 
 /**
@@ -167,7 +165,7 @@ class Session {
       return await Promise.race([run(), aborted, this.#exitedEarly(name)]);
     } catch (error) {
       if (error instanceof FootprintError) throw error;
-      throw this.#withStderr(new FootprintError(`${name} failed: ${(error as Error).message}`));
+      throw this.#withStderr(new FootprintError(`${name} failed: ${describeSdkError(error as Error)}`));
     }
   }
 
@@ -195,4 +193,38 @@ class Session {
     if (tail) error.message += `\nlast server stderr:\n${tail}`;
     return error;
   }
+}
+
+/** The SDK's schema validation recurses, so a result nested about a thousand levels deep overflows it. */
+const STACK_OVERFLOW = /Maximum call stack size exceeded/;
+/** "Invalid result for tools/list: [ ...zod issues as pretty JSON... ]" */
+const INVALID_RESULT = /^(Invalid result for [^:]+): (\[[\s\S]*\])$/;
+
+interface Issue {
+  path?: unknown[];
+  message?: string;
+}
+
+/**
+ * Shortens SDK errors that would otherwise flood the terminal: a validation
+ * error lists every issue as JSON, one per bad field of every tool.
+ */
+export function describeSdkError(error: Error): string {
+  const { message } = error;
+  if (error instanceof RangeError || STACK_OVERFLOW.test(message)) {
+    return 'the result is nested too deep for the MCP SDK to validate (real tool schemas are a few levels deep)';
+  }
+  const match = INVALID_RESULT.exec(message);
+  if (!match) return message;
+  let issues: Issue[];
+  try {
+    issues = JSON.parse(match[2] ?? '') as Issue[];
+  } catch {
+    return message;
+  }
+  const [first] = issues;
+  if (first === undefined) return message;
+  const where = Array.isArray(first.path) && first.path.length > 0 ? `${first.path.join('.')}: ` : '';
+  const more = issues.length > 1 ? ` (and ${issues.length - 1} more problem${issues.length === 2 ? '' : 's'})` : '';
+  return `${match[1] ?? ''}: ${where}${first.message ?? 'invalid'}${more}`;
 }

@@ -12,7 +12,10 @@ export interface CounterInfo {
   unit: string;
   /** One line that says exactly what the number is. */
   label: string;
-  /** False for estimates. Estimates are never printed without their label. */
+  /**
+   * True when a tokenizer produced the number, false for the chars/4
+   * estimate. It says nothing about billing: no mode reproduces a bill.
+   */
   exact: boolean;
   model?: string;
 }
@@ -52,7 +55,7 @@ abstract class LocalCounter implements Counter {
 }
 
 /** What the o200k label says the number is, and is not. */
-export const O200K_LABEL = "o200k_base: exact token count of each tool's JSON definition";
+export const O200K_LABEL = "o200k_base tokens of each tool's JSON (a comparable size, not any provider's billed count)";
 
 /** Counts a batch of texts, one number per text. */
 type CountBatch = (texts: string[]) => Promise<number[]>;

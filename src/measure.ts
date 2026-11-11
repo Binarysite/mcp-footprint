@@ -44,6 +44,8 @@ export interface Report {
   prompts: ListMeasure | null;
   resources: ListMeasure | null;
   budget: { limit: number; over: boolean } | null;
+  /** Problems worth fixing that do not stop the measurement. */
+  warnings: string[];
 }
 
 export interface MeasureInput {
@@ -121,7 +123,17 @@ export async function measure(input: MeasureInput, counter: Counter): Promise<Re
     prompts: await measureList(input.prompts, counter, ['name', 'description', 'arguments']),
     resources: await measureList(input.resources, counter, ['uri', 'name', 'description', 'mimeType']),
     budget: null,
+    warnings: duplicateNames(definitions.map((d) => d.name)),
   };
+}
+
+/** Tool names must be unique within a server; clients differ on what they do when they are not. */
+function duplicateNames(names: readonly string[]): string[] {
+  const counts = new Map<string, number>();
+  for (const name of names) counts.set(name, (counts.get(name) ?? 0) + 1);
+  return [...counts]
+    .filter(([, count]) => count > 1)
+    .map(([name, count]) => `${count} tools are named "${name}"; a client may reject the server or keep only one of them`);
 }
 
 /** JSON.stringify recurses, so a schema nested tens of thousands of levels deep throws RangeError. */

@@ -151,50 +151,48 @@ export class AnthropicCounter implements Counter {
   /** One HTTP attempt: the token count, or the retry-after header when the caller should retry. */
   async #attempt(body: CountRequest, attempt: number, deadline: AbortSignal): Promise<number | { retryAfter: string | null }> {
     const { apiKey, version, retries, timeoutMs, signal } = this.#options;
-    {
-      let response: Response;
-      try {
-        response = await this.#options.fetch(this.#endpoint.href, {
-          method: 'POST',
-          headers: { 'x-api-key': apiKey, 'anthropic-version': version, 'content-type': 'application/json' },
-          body: JSON.stringify(body),
-          // Never follow a redirect: fetch would replay x-api-key to the new origin.
-          redirect: 'manual',
-          signal: signal ? AbortSignal.any([signal, deadline]) : deadline,
-        });
-      } catch (error) {
-        throwIfInterrupted(signal);
-        if (deadline.aborted) throw new FootprintError(`Anthropic count_tokens timed out after ${timeoutMs} ms`);
-        throw new FootprintError(`Anthropic count_tokens request failed: ${(error as Error).message}`);
-      }
-      if (response.status >= 300 && response.status < 400) {
-        await response.body?.cancel();
-        throw new FootprintError(
-          `Anthropic count_tokens answered with a redirect (HTTP ${response.status}); not following it, the API key would be sent to another host. Check ANTHROPIC_BASE_URL.`,
-        );
-      }
-      const retryable = response.status === 429 || response.status >= 500;
-      if (retryable && attempt < retries) {
-        await response.body?.cancel();
-        return { retryAfter: response.headers.get('retry-after') };
-      }
-      const text = await response.text();
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(text);
-      } catch {
-        parsed = undefined;
-      }
-      if (!response.ok) {
-        const message = (parsed as { error?: { message?: string } } | undefined)?.error?.message ?? text.slice(0, 200);
-        throw new FootprintError(`Anthropic count_tokens returned HTTP ${response.status}: ${message}`);
-      }
-      const tokens = (parsed as { input_tokens?: unknown } | undefined)?.input_tokens;
-      if (typeof tokens !== 'number' || !Number.isInteger(tokens)) {
-        throw new FootprintError(`Anthropic count_tokens returned no input_tokens: ${text.slice(0, 200)}`);
-      }
-      return tokens;
+    let response: Response;
+    try {
+      response = await this.#options.fetch(this.#endpoint.href, {
+        method: 'POST',
+        headers: { 'x-api-key': apiKey, 'anthropic-version': version, 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+        // Never follow a redirect: fetch would replay x-api-key to the new origin.
+        redirect: 'manual',
+        signal: signal ? AbortSignal.any([signal, deadline]) : deadline,
+      });
+    } catch (error) {
+      throwIfInterrupted(signal);
+      if (deadline.aborted) throw new FootprintError(`Anthropic count_tokens timed out after ${timeoutMs} ms`);
+      throw new FootprintError(`Anthropic count_tokens request failed: ${(error as Error).message}`);
     }
+    if (response.status >= 300 && response.status < 400) {
+      await response.body?.cancel();
+      throw new FootprintError(
+        `Anthropic count_tokens answered with a redirect (HTTP ${response.status}); not following it, the API key would be sent to another host. Check ANTHROPIC_BASE_URL.`,
+      );
+    }
+    const retryable = response.status === 429 || response.status >= 500;
+    if (retryable && attempt < retries) {
+      await response.body?.cancel();
+      return { retryAfter: response.headers.get('retry-after') };
+    }
+    const text = await response.text();
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = undefined;
+    }
+    if (!response.ok) {
+      const message = (parsed as { error?: { message?: string } } | undefined)?.error?.message ?? text.slice(0, 200);
+      throw new FootprintError(`Anthropic count_tokens returned HTTP ${response.status}: ${message}`);
+    }
+    const tokens = (parsed as { input_tokens?: unknown } | undefined)?.input_tokens;
+    if (typeof tokens !== 'number' || !Number.isInteger(tokens)) {
+      throw new FootprintError(`Anthropic count_tokens returned no input_tokens: ${text.slice(0, 200)}`);
+    }
+    return tokens;
   }
 }
 

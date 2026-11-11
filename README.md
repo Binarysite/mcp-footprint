@@ -4,9 +4,9 @@ bundlephobia for MCP servers: how many context tokens a server costs before you 
 
 <!-- sample-output:start -->
 ```text
-$ npx github:Binarysite/mcp-footprint#v0.1.0 -- npx -y @modelcontextprotocol/server-memory@2.1.1
+$ npx github:Binarysite/mcp-footprint#v0.1.1 -- npx -y @modelcontextprotocol/server-memory@2.1.1
 memory-server 2.1.1: 9 tools, 1 page
-counted with o200k_base: exact token count of each tool's JSON definition
+counted with o200k_base tokens of each tool's JSON (a comparable size, not any provider's billed count)
 
   o200k tokens   share  tool
            289   16.7%  search_nodes
@@ -62,6 +62,7 @@ Everything after `--` is the server command, passed through untouched.
 | `--save-tools <file>` | write the server's raw tools/list result, for `--from-json` later |
 | `--timeout <ms>` | deadline for the whole run: starting the server, listing, and counting (default 30000). After a timeout the server gets 200 ms to exit, then 200 ms after SIGTERM, so the run ends within about the timeout plus 0.5 s |
 | `--model <id>` | model for `--count anthropic` (default `claude-opus-5-5`) |
+| `--experimental` | required with `--count anthropic`; see below for why |
 | `--verbose` | pass the server's stderr through |
 
 `--from-json` accepts a bare array of tools, a tools/list result (`{"tools": [...]}`) or a JSON-RPC response (`{"result": {"tools": [...]}}`).
@@ -97,7 +98,7 @@ The official Node servers from the `@modelcontextprotocol` npm scope that start 
 | `@modelcontextprotocol/server-everything` * | 2.3.0 | 16 | 1,709 | `gzip-file-as-resource` (244) | [server-everything.json](reports/server-everything.json) |
 | `@modelcontextprotocol/server-sequential-thinking` | 2.1.1 | 1 | 488 | `sequentialthinking` (488) | [server-sequential-thinking.json](reports/server-sequential-thinking.json) |
 
-Measured 2026-11-11, Node v24.22.2, o200k_base via js-tiktoken 1.0.21, mcp-footprint 0.1.0.
+Measured 2026-11-11, Node v24.22.2, o200k_base via js-tiktoken 1.0.21, mcp-footprint 0.1.1.
 
 \* `@modelcontextprotocol/server-everything` registers five more tools for a client that declares roots, elicitation and sampling (`registerConditionalTools` in its `dist/tools/index.js`). mcp-footprint declares no client capabilities, so they are not counted.
 <!-- reference-table:end -->
@@ -108,8 +109,8 @@ Regenerate with `npm run measure:reference` (Node 24, the servers' minimum), the
 
 Each tool is reduced to what a model API receives, `{"name", "description", "input_schema"}`, and serialized as compact JSON. MCP-only fields (`title`, `annotations`, `outputSchema`, `icons`, `_meta`) are dropped. The output always names the counting mode.
 
-- **`o200k`** (default): OpenAI's o200k_base encoding, as used by GPT-4o, via [js-tiktoken](https://github.com/dqbd/tiktoken), checked against reference token ids. The count of the JSON is exact. What a provider bills can differ, because each one renders tool definitions into its own internal format before tokenizing. The total is the sum of the per-tool counts.
-- **`anthropic`**: the token-counting endpoint, `POST /v1/messages/count_tokens`, with `ANTHROPIC_API_KEY` (and optionally `ANTHROPIC_BASE_URL`). The total is a request with the tools minus the same request without them, so it includes the tool-use preamble the API adds. Per tool is the marginal cost: all tools minus all tools but that one. What is left over is printed as overhead. A server with n tools costs n + 2 requests; the endpoint is free but rate limited. **The live call has not been exercised by the author yet**: it is tested against a mocked fetch only, built from the current API docs. Every number published in this README uses o200k.
+- **`o200k`** (default): o200k_base tokens of each tool's JSON, a comparable size, not any provider's billed count. The encoding is OpenAI's o200k_base, as used by GPT-4o, with js-tiktoken's rank table and a merge that is checked against [js-tiktoken](https://github.com/dqbd/tiktoken)'s ids. No provider bills this number: each one renders tool definitions into its own internal format and adds a preamble before tokenizing. Use it to compare servers and to hold a budget. The total is the sum of the per-tool counts.
+- **`anthropic`** (experimental, needs `--experimental`): the token-counting endpoint, `POST /v1/messages/count_tokens`, with `ANTHROPIC_API_KEY` (and optionally `ANTHROPIC_BASE_URL`). The total is a request with the tools minus the same request without them, so it includes the tool-use preamble the API adds. Per tool is the marginal cost: all tools minus all tools but that one. What is left over is printed as overhead. A server with n tools costs n + 2 requests; the endpoint is free but rate limited. It sits behind `--experimental` because the live call has never been exercised: it is tested against a mocked fetch only, built from the current API docs, so a mistake in how the request is shaped or how the difference is taken would go unnoticed. Every number published in this README uses o200k.
 - **`chars4`**: the length of the JSON divided by 4, rounded up. An estimate, labelled as one wherever it appears.
 
 Prompts and resources are listed and counted when a server advertises them, but they are kept out of the total: clients do not send them with every request.
@@ -118,7 +119,7 @@ Prompts and resources are listed and counted when a server advertises them, but 
 
 - stdio only. HTTP and SSE transports are out of scope for v0.1.
 - A single tool definition over 64 KB of JSON is refused (exit 2), and a server that writes 64 MB without a newline is stopped. Real servers are far below both.
-- Tokenizers differ. o200k is not Claude's tokenizer, and Anthropic's token-counting docs say Claude 4.7 and later models produce roughly 30% more tokens than earlier Claude models for the same text. Compare servers with one mode, not across modes.
+- Tokenizers differ, so an o200k number is not a Claude number. Anthropic's [token-counting page](https://platform.claude.com/docs/en/build-with-claude/token-counting) gives no comparison with o200k. It does say that Claude Opus 4.7 and later use a newer tokenizer, on which the same input produces "approximately 30 percent more tokens" than on earlier Claude models, so even two Claude models disagree. Compare servers with one mode, not across modes, and do not convert between them.
 - Vendor system-prompt overhead for tool use is not included, except in `anthropic` mode's difference.
 - mcp-footprint connects with the 2025-era `initialize` handshake and declares no client capabilities. A server that registers tools only for clients with sampling, elicitation or roots reports fewer tools than a full client sees.
 - The server's process group is killed on shutdown (POSIX). On Windows only the direct child is signalled, and CI does not run there.

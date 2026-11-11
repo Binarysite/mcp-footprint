@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import { renderText } from '../src/render.js';
 import { README, readReports, renderTable, SAMPLE, updateReadme } from '../scripts/readme.js';
+import { VERSION } from '../src/version.js';
 
 const readme = await readFile(README, 'utf8');
 const reports = await readReports();
@@ -31,4 +32,11 @@ test('the sample output is the CLI text output for the sample report', () => {
 
 test('README follows the house style: no em dashes', () => {
   assert.doesNotMatch(readme, /\u2014/);
+});
+
+test('the sample installs this release, and only the note names the measuring version', () => {
+  assert.ok(readme.includes(`$ npx github:Binarysite/mcp-footprint#v${VERSION} -- `));
+  const sample = reports.get(SAMPLE);
+  assert.ok(sample);
+  assert.ok(renderTable(reports).includes(`mcp-footprint ${sample.report.version}`));
 });
