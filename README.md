@@ -42,13 +42,13 @@ Requires Node.js 22 or newer. The current reference servers require Node.js 24 t
 
 ```sh
 # Start a server over stdio, list its tools, stop it, print the report
-npx github:Binarysite/mcp-footprint#v0.1.0 -- npx -y @modelcontextprotocol/server-memory@2.1.1
+npx github:Binarysite/mcp-footprint#v0.1.1 -- npx -y @modelcontextprotocol/server-memory@2.1.1
 
 # Measure a saved tools/list result, with no process at all
-npx github:Binarysite/mcp-footprint#v0.1.0 --from-json tools.json
+npx github:Binarysite/mcp-footprint#v0.1.1 --from-json tools.json
 
 # Fail when the tool definitions cost more than 3,000 tokens
-npx github:Binarysite/mcp-footprint#v0.1.0 --budget 3000 -- node dist/index.js
+npx github:Binarysite/mcp-footprint#v0.1.1 --budget 3000 -- node dist/index.js
 ```
 
 Everything after `--` is the server command, passed through untouched.
@@ -77,7 +77,7 @@ A composite action, used like size-limit. It needs Node.js 22 or newer on the ru
   with:
     node-version: 22
 - run: npm ci && npm run build
-- uses: Binarysite/mcp-footprint@v0.1.0
+- uses: Binarysite/mcp-footprint@v0.1.1
   with:
     command: node dist/index.js
     budget: 3000
