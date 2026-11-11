@@ -25,7 +25,7 @@
     "lint": "eslint .",
     "pretest": "tsc -p tsconfig.json",
     "test": "node --test --enable-source-maps \"build/test/**/*.test.js\"",
-    "coverage": "tsc -p tsconfig.json && node --test --enable-source-maps --experimental-test-coverage --test-coverage-include=\"build/src/**\" --test-coverage-include=\"src/**\" --test-coverage-lines=90 --test-coverage-branches=85 --test-coverage-functions=90 \"build/test/**/*.test.js\"",
+    "coverage": "tsc -p tsconfig.json && node --test --enable-source-maps --experimental-test-coverage --test-coverage-include=\"build/src/**\" --test-coverage-include=\"src/**\" --test-coverage-lines=95 --test-coverage-branches=90 --test-coverage-functions=95 \"build/test/**/*.test.js\"",
     "readme": "node scripts/readme.mjs",
     "measure:reference": "node scripts/measure-reference.mjs"
   },

@@ -1,0 +1,60 @@
+{
+  "tools": [
+    {
+      "name": "echo",
+      "description": "Return the input text unchanged.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": { "type": "string", "description": "Text to return." }
+        },
+        "required": ["text"]
+      }
+    },
+    {
+      "name": "search_issues",
+      "description": "Search issues in a project tracker. Supports filters by state, label and assignee, and returns at most `limit` results ordered by the chosen field.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string", "description": "Free-text query." },
+          "filters": {
+            "type": "object",
+            "properties": {
+              "state": { "type": "string", "enum": ["open", "closed", "all"] },
+              "labels": { "type": "array", "items": { "type": "string" } },
+              "assignee": {
+                "type": "object",
+                "properties": {
+                  "login": { "type": "string" },
+                  "team": { "type": "string" }
+                }
+              }
+            }
+          },
+          "sort": { "type": "string", "enum": ["created", "updated", "comments"] },
+          "limit": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "bulk_import",
+      "description": "Import many records at once from a CSV or JSON Lines payload. Each record is validated against the target table's columns before anything is written. If any record fails validation, nothing is written and the response lists every failing row with the column and the reason, so the caller can fix the payload and retry. Rows are written in a single transaction. Use dry_run to validate without writing. Large payloads are accepted up to 5 MB; split anything larger into several calls.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "table": { "type": "string", "description": "Target table name." },
+          "format": { "type": "string", "enum": ["csv", "jsonl"] },
+          "payload": { "type": "string", "description": "The records, as CSV text or JSON Lines." },
+          "dry_run": { "type": "boolean", "default": false }
+        },
+        "required": ["table", "format", "payload"]
+      }
+    },
+    {
+      "name": "ping",
+      "inputSchema": { "type": "object" }
+    }
+  ]
+}
