@@ -68,7 +68,7 @@ They are listed and counted when advertised, on their own lines. Clients show th
 
 Each file in reports/ holds the raw tools/list result next to the numbers, plus the package's npm integrity hash. A test re-measures the raw result and requires an exact match, and another regenerates the README table and the sample output and requires that they match too. A change to the serializer or the tokenizer that would make a published number wrong fails CI instead.
 
-The price is repository size: each report is tens of KB of JSON.
+The price is repository size: 6 KB to 200 KB of JSON per server, the Notion report being the large one.
 
 ## A baseline is an earlier report, not a stored state
 

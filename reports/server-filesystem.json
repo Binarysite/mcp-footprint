@@ -257,6 +257,7 @@
       "tokens": 0
     },
     "budget": null,
+    "baseline": null,
     "warnings": []
   },
   "toolsList": {
