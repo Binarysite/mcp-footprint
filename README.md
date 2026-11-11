@@ -1,5 +1,11 @@
 # mcp-footprint
 
+[![ci](https://github.com/Binarysite/mcp-footprint/actions/workflows/ci.yml/badge.svg)](https://github.com/Binarysite/mcp-footprint/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/Binarysite/mcp-footprint/actions/workflows/codeql.yml/badge.svg)](https://github.com/Binarysite/mcp-footprint/actions/workflows/codeql.yml)
+[![release](https://img.shields.io/github/v/release/Binarysite/mcp-footprint)](https://github.com/Binarysite/mcp-footprint/releases)
+![node >=22](https://img.shields.io/badge/node-%3E%3D22-informational)
+[![license MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 bundlephobia for MCP servers: how many context tokens a server costs before you type anything, plus a CI budget that fails when its tool definitions grow.
 
 <!-- sample-output:start -->
