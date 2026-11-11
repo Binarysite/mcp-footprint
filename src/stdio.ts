@@ -57,15 +57,7 @@ export class ProcessTransport implements Transport {
     return this.#stderrTail;
   }
 
-  get exitInfo(): ExitInfo | undefined {
-    return this.#exit;
-  }
-
-  get pid(): number | undefined {
-    return this.#child?.pid;
-  }
-
-  /** Resolves when the server process exits. Never resolves if it never started. */
+  /** Resolves when the server process exits. Stays pending if it never started. */
   get exited(): Promise<ExitInfo> {
     return this.#exited;
   }
@@ -122,6 +114,8 @@ export class ProcessTransport implements Transport {
         }),
       ]);
     } catch (error) {
+      // No process exists: shutdown() has nothing to stop, and `exited` stays pending.
+      this.#child = undefined;
       throw new FootprintError(`could not start ${command}: ${(error as Error).message}`);
     }
     child.on('error', (error) => this.onerror?.(error));
