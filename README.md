@@ -38,7 +38,7 @@ Claude Code's `/context` already shows per-server usage once a server is install
 
 ## Use
 
-Requires Node.js 22 or newer.
+Requires Node.js 22 or newer. The current reference servers require Node.js 24 themselves.
 
 ```sh
 # Start a server over stdio, list its tools, stop it, print the report
