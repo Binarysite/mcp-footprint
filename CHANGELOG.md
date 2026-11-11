@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.2.0] - 2026-11-11
 
 ### Changed
 
@@ -50,5 +50,6 @@ All notable changes to this project are documented here. The format follows [Kee
 - Composite GitHub Action (`action.yml`) for a budget in CI.
 - Measured reports for four official reference servers, and a README table generated from them.
 
+[0.2.0]: https://github.com/Binarysite/mcp-footprint/releases/tag/v0.2.0
 [0.1.1]: https://github.com/Binarysite/mcp-footprint/releases/tag/v0.1.1
 [0.1.0]: https://github.com/Binarysite/mcp-footprint/releases/tag/v0.1.0
