@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import type { Counter, CounterInfo, ToolCounts } from '../src/counters.js';
 import { FootprintError } from '../src/errors.js';
 import { loadTools, parseTools } from '../src/load.js';
-import { measure, withBudget, type MeasureInput } from '../src/measure.js';
+import { MAX_TOOL_BYTES, measure, withBudget, type MeasureInput } from '../src/measure.js';
 import { renderJson, renderText } from '../src/render.js';
 import type { ToolDefinition } from '../src/serialize.js';
 
@@ -196,4 +196,23 @@ test('a schema too deep to serialize is a FootprintError, not a crash', async ()
     measure({ ...input, tools: [{ name: 'deep', inputSchema: schema }] }, new FakeCounter()),
     (error: unknown) => error instanceof FootprintError && /deep/.test(error.message),
   );
+});
+
+test('a tool definition over 64 KB serialized is refused before counting', async () => {
+  let counted = false;
+  const counter = new FakeCounter();
+  counter.countTools = () => {
+    counted = true;
+    return Promise.resolve({ perTool: [], total: 0, overhead: 0 });
+  };
+  const huge = { name: 'huge', description: 'a'.repeat(MAX_TOOL_BYTES), inputSchema: { type: 'object' } };
+  await assert.rejects(measure({ ...input, tools: [huge] }, counter), (error: unknown) => {
+    assert.ok(error instanceof FootprintError);
+    assert.match(error.message, /tool "huge" is 65,\d{3} bytes as JSON; the limit is 65,536/);
+    return true;
+  });
+  assert.equal(counted, false);
+  // Just under the limit is fine.
+  const fits = { ...huge, description: 'a'.repeat(MAX_TOOL_BYTES - 100) };
+  assert.equal((await measure({ ...input, tools: [fits] }, new FakeCounter())).total.tools, 1);
 });

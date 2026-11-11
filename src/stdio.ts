@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { once } from 'node:events';
-import { ReadBuffer, serializeMessage, type JSONRPCMessage, type Transport } from '@modelcontextprotocol/client';
+import { deserializeMessage, serializeMessage, type JSONRPCMessage, type Transport } from '@modelcontextprotocol/client';
 import { FootprintError } from './errors.js';
 
 export interface ProcessTransportOptions {
@@ -12,6 +12,11 @@ export interface ProcessTransportOptions {
   graceMs?: number;
   /** Called with every chunk the server writes to stderr. */
   onStderr?: (chunk: string) => void;
+  /**
+   * Most bytes the server may write without ending a message (a newline).
+   * Past it the transport reports an error and stops the server.
+   */
+  maxMessageBytes?: number;
 }
 
 export interface ExitInfo {
@@ -20,6 +25,10 @@ export interface ExitInfo {
 }
 
 const STDERR_TAIL_BYTES = 4096;
+/** Far above any real tools/list page, far below what fills a CI runner's memory. */
+export const DEFAULT_MAX_MESSAGE_BYTES = 64 * 1024 * 1024;
+/** Grace per shutdown step once the run has already failed (timeout, Ctrl-C, flood). */
+export const FAILURE_GRACE_MS = 200;
 const isWindows = process.platform === 'win32';
 
 /**
@@ -37,7 +46,10 @@ export class ProcessTransport implements Transport {
   onmessage?: (message: JSONRPCMessage) => void;
 
   readonly #options: ProcessTransportOptions;
-  readonly #readBuffer = new ReadBuffer();
+  /** Chunks of the line not yet ended by a newline, and their total size. */
+  #partial: Buffer[] = [];
+  #partialBytes = 0;
+  #fatal: FootprintError | undefined;
   #child: ChildProcessWithoutNullStreams | undefined;
   #exit: ExitInfo | undefined;
   readonly #exited: Promise<ExitInfo>;
@@ -55,6 +67,11 @@ export class ProcessTransport implements Transport {
   /** The last few KB the server wrote to stderr, for error messages. */
   get stderrTail(): string {
     return this.#stderrTail;
+  }
+
+  /** Set when the transport stopped the server itself, for example after a flood of output. */
+  get fatalError(): FootprintError | undefined {
+    return this.#fatal;
   }
 
   /** Resolves when the server process exits. Stays pending if it never started. */
@@ -80,23 +97,7 @@ export class ProcessTransport implements Transport {
     });
 
     child.stdout.on('data', (chunk: Buffer) => {
-      try {
-        this.#readBuffer.append(chunk);
-      } catch (error) {
-        this.onerror?.(new FootprintError(`unreadable output from server: ${(error as Error).message}`));
-        return;
-      }
-      // ReadBuffer skips lines that are not JSON. A line that is JSON but not
-      // JSON-RPC throws after it has been consumed, so the loop can go on.
-      for (;;) {
-        try {
-          const message = this.#readBuffer.readMessage();
-          if (message === null) break;
-          this.onmessage?.(message);
-        } catch (error) {
-          this.onerror?.(new FootprintError(`unreadable output from server: ${(error as Error).message}`));
-        }
-      }
+      this.#read(chunk);
     });
     child.stderr.setEncoding('utf8');
     child.stderr.on('data', (chunk: string) => {
@@ -121,6 +122,49 @@ export class ProcessTransport implements Transport {
     child.on('error', (error) => this.onerror?.(error));
   }
 
+  /**
+   * Splits stdout into lines without copying the unfinished one on every
+   * chunk, and stops the server once an unfinished line passes the cap.
+   */
+  #read(chunk: Buffer): void {
+    if (this.#fatal) return;
+    let from = 0;
+    for (let newline = chunk.indexOf(10); newline !== -1; newline = chunk.indexOf(10, from)) {
+      const piece = chunk.subarray(from, newline);
+      const line = this.#partial.length === 0 ? piece : Buffer.concat([...this.#partial, piece]);
+      this.#partial = [];
+      this.#partialBytes = 0;
+      from = newline + 1;
+      this.#deliver(line.toString('utf8').replace(/\r$/, ''));
+    }
+    if (from < chunk.length) {
+      this.#partial.push(chunk.subarray(from));
+      this.#partialBytes += chunk.length - from;
+    }
+    const max = this.#options.maxMessageBytes ?? DEFAULT_MAX_MESSAGE_BYTES;
+    if (this.#partialBytes > max) {
+      this.#partial = [];
+      this.#partialBytes = 0;
+      this.#fatal = new FootprintError(`server wrote more than ${formatBytes(max)} without ending a message; stopping it`);
+      this.#child?.stdout.pause();
+      this.onerror?.(this.#fatal);
+      void this.shutdown(FAILURE_GRACE_MS);
+    }
+  }
+
+  /** Lines that are not JSON are logs and skipped; JSON that is not JSON-RPC is reported. */
+  #deliver(line: string): void {
+    let message: JSONRPCMessage;
+    try {
+      message = deserializeMessage(line);
+    } catch (error) {
+      if (error instanceof SyntaxError) return;
+      this.onerror?.(new FootprintError(`unreadable output from server: ${(error as Error).message}`));
+      return;
+    }
+    this.onmessage?.(message);
+  }
+
   async send(message: JSONRPCMessage): Promise<void> {
     const stdin = this.#child?.stdin;
     if (stdin === undefined || this.#exit) throw new FootprintError('server is not running');
@@ -136,17 +180,17 @@ export class ProcessTransport implements Transport {
    * Stops the server the way the MCP stdio spec describes: close stdin, wait,
    * SIGTERM, wait, SIGKILL. Signals go to the whole process group, and the
    * group is swept with SIGKILL at the end even if the leader exited on its
-   * own, so no grandchild outlives the measurement.
+   * own, so no grandchild outlives the measurement. `graceMs` overrides the
+   * configured wait per step; the first call decides it.
    */
-  shutdown(): Promise<void> {
-    this.#closing ??= this.#shutdown();
+  shutdown(graceMs?: number): Promise<void> {
+    this.#closing ??= this.#shutdown(graceMs ?? this.#options.graceMs ?? 2000);
     return this.#closing;
   }
 
-  async #shutdown(): Promise<void> {
+  async #shutdown(graceMs: number): Promise<void> {
     const child = this.#child;
     if (!child) return;
-    const graceMs = this.#options.graceMs ?? 2000;
     child.stdin.end();
     if (!this.#exit && !(await this.#waitForExit(graceMs))) {
       this.#signal('SIGTERM');
@@ -185,4 +229,8 @@ export class ProcessTransport implements Transport {
       if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
     }
   }
+}
+
+function formatBytes(bytes: number): string {
+  return bytes % (1024 * 1024) === 0 ? `${bytes / (1024 * 1024)} MB` : `${bytes} bytes`;
 }

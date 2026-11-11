@@ -203,3 +203,30 @@ test('--timeout bounds each anthropic request', async () => {
   assert.equal(await main(['--count', 'anthropic', '--timeout', '30', '--from-json', await toolsFile()], io), EXIT.error);
   assert.match(io.err, /timed out after 30 ms/);
 });
+
+test('a 50,000-character description is counted, and quickly', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'mcp-footprint-cli-'));
+  const path = join(dir, 'long.json');
+  await writeFile(path, JSON.stringify({ tools: [{ name: 'long', description: 'a'.repeat(50_000), inputSchema: { type: 'object' } }] }));
+  const io = capture();
+  const started = Date.now();
+  assert.equal(await main(['--json', '--from-json', path], io), EXIT.ok);
+  const elapsed = Date.now() - started;
+  assert.ok(elapsed < 5000, `took ${elapsed} ms`);
+  assert.ok((JSON.parse(io.out) as Report).total.tokens > 0);
+});
+
+test('a tool over 64 KB is exit 2 with a message that says why', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'mcp-footprint-cli-'));
+  const path = join(dir, 'huge.json');
+  await writeFile(path, JSON.stringify({ tools: [{ name: 'huge', description: 'a'.repeat(70_000), inputSchema: { type: 'object' } }] }));
+  const io = capture();
+  assert.equal(await main(['--from-json', path], io), EXIT.error);
+  assert.match(io.err, /tool "huge" is 70,\d{3} bytes as JSON; the limit is 65,536/);
+});
+
+test('--timeout also bounds counting', async () => {
+  const io = capture();
+  assert.equal(await main(['--timeout', '1', '--from-json', await toolsFile()], io), EXIT.error);
+  assert.match(io.err, /timed out after 1 ms counting tokens/);
+});

@@ -16,6 +16,18 @@ Cost: under 200 lines that duplicate part of the SDK, built on its `ReadBuffer` 
 
 Cost: a slow but healthy server with many pages needs a larger `--timeout`.
 
+## Untrusted input is bounded in time and size
+
+A server, or a file handed to `--from-json`, controls every byte that gets counted. Three limits keep one from parking CI:
+
+- js-tiktoken 1.0.21 merges byte pairs by rescanning the whole piece after every merge, which is quadratic on a long run of one character: 10 KB of `a` took 6.5 s, 40 KB more than 80 s. src/o200k.ts keeps js-tiktoken's rank table and split pattern and replaces only the merge with a priority queue (same rule: lowest rank, leftmost on a tie), so 50 KB of `a` takes well under a second. A test compares the ids with js-tiktoken's on a few hundred samples, and the reference reports re-measure to the same numbers.
+- Counting runs in a worker thread that is terminated when `--timeout` runs out, measured from the start of the run, so a slow path nobody has found yet still ends at the deadline. A tool whose JSON is over 64 KB is refused before counting.
+- stdout is split into lines without recopying the unfinished one, and a line that passes 64 MB stops the server. The SDK's `ReadBuffer` concatenated every chunk onto the pending line, and on overflow it cleared and kept going, so a server that never wrote a newline grew the process to 771 MB in 8 s.
+
+After a timeout or any other failure the server gets 200 ms per shutdown step instead of 2 s, so `--timeout 1500` ends in about 1.9 s rather than 6.
+
+Cost: a second thread and a second copy of the rank table. The worker starts loading it at once, so for a live server the load overlaps the server's own startup. The merge is our code now, not js-tiktoken's, and has to be kept in step with the encoding if that ever changes.
+
 ## Pages are walked by hand
 
 `Client.listTools()` without a cursor aggregates every page, but it can also remove tools whose `x-mcp-header` declarations it considers invalid, and it does not report how many pages there were. mcp-footprint calls `client.request({ method: 'tools/list', params: { cursor } })` per page, so the measurement is exactly what the server sent. A cursor seen twice or more than 1,000 pages is an error rather than a hang. An empty-string cursor ends the list, because some servers send `""` instead of omitting the field.

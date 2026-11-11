@@ -176,3 +176,25 @@ test('Ctrl-C on the bin stops the server group and exits 130', { skip: !posix },
   assert.match(stderr, /interrupted/);
   assert.ok(await waitUntilDead(pids, 6000), `still alive: ${pids.filter(alive).join(', ')}`);
 });
+
+test('after a timeout the server gets a short grace, not the full one', { skip: !posix }, async () => {
+  const pidFile = join(await mkdtemp(join(tmpdir(), 'mcp-footprint-hang-')), 'pids');
+  const started = Date.now();
+  // The normal 2 s grace per step, as the bin uses it.
+  const result = await run(['--timeout', '1500', '--', node, hangServer, pidFile], { graceMs: 2000 });
+  const elapsed = Date.now() - started;
+  assert.equal(result.code, EXIT.error);
+  assert.match(result.err, /timed out after 1500 ms waiting for initialize/);
+  // 1500 ms deadline + 200 ms after closing stdin + 200 ms after SIGTERM; it took 6.0 s before.
+  assert.ok(elapsed < 2300, `took ${elapsed} ms`);
+});
+
+test('a server that floods stdout without a newline fails fast with a clear message', async () => {
+  const flood = 'const chunk = "x".repeat(65536); const write = () => { while (process.stdout.write(chunk)); }; process.stdout.on("drain", write); write(); process.stdin.resume();';
+  const started = Date.now();
+  const result = await run(['--timeout', '60000', '--', node, '-e', flood], { graceMs: 2000 });
+  const elapsed = Date.now() - started;
+  assert.equal(result.code, EXIT.error);
+  assert.match(result.err, /server wrote more than 64 MB without ending a message; stopping it/);
+  assert.ok(elapsed < 10_000, `took ${elapsed} ms`);
+});
