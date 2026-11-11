@@ -128,10 +128,30 @@ export class AnthropicCounter implements Counter {
   }
 
   async #count(body: CountRequest): Promise<number> {
-    const { apiKey, version, retries, retryDelayMs, maxRetryDelayMs, timeoutMs, signal } = this.#options;
     for (let attempt = 0; ; attempt++) {
-      throwIfInterrupted(signal);
-      const deadline = AbortSignal.timeout(timeoutMs);
+      let retryAfter: string | null;
+      throwIfInterrupted(this.#options.signal);
+      // A ref'd timer, not AbortSignal.timeout(): that one is unref'd, and on Node 22 an idle loop then exits mid-request.
+      const deadline = new AbortController();
+      const timer = setTimeout(() => {
+        deadline.abort();
+      }, this.#options.timeoutMs);
+      try {
+        const result = await this.#attempt(body, attempt, deadline.signal);
+        if (typeof result === 'number') return result;
+        retryAfter = result.retryAfter;
+      } finally {
+        clearTimeout(timer);
+      }
+      const { retryDelayMs, maxRetryDelayMs, signal } = this.#options;
+      await sleep(retryDelay(retryAfter, retryDelayMs, maxRetryDelayMs), signal);
+    }
+  }
+
+  /** One HTTP attempt: the token count, or the retry-after header when the caller should retry. */
+  async #attempt(body: CountRequest, attempt: number, deadline: AbortSignal): Promise<number | { retryAfter: string | null }> {
+    const { apiKey, version, retries, timeoutMs, signal } = this.#options;
+    {
       let response: Response;
       try {
         response = await this.#options.fetch(this.#endpoint.href, {
@@ -156,8 +176,7 @@ export class AnthropicCounter implements Counter {
       const retryable = response.status === 429 || response.status >= 500;
       if (retryable && attempt < retries) {
         await response.body?.cancel();
-        await sleep(retryDelay(response.headers.get('retry-after'), retryDelayMs, maxRetryDelayMs), signal);
-        continue;
+        return { retryAfter: response.headers.get('retry-after') };
       }
       const text = await response.text();
       let parsed: unknown;
