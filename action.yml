@@ -1,0 +1,93 @@
+name: mcp-footprint
+description: Fail the job when an MCP server's tool definitions cost more context tokens than a budget.
+author: Alfredo Rosadilla
+branding:
+  icon: maximize-2
+  color: gray-dark
+
+inputs:
+  command:
+    description: Shell command that starts the server over stdio, for example "node dist/index.js". Leave empty when using from-json.
+    required: false
+    default: ''
+  from-json:
+    description: Path to a saved tools/list result to measure instead of starting a server.
+    required: false
+    default: ''
+  budget:
+    description: Maximum total tokens for the tool definitions. The step fails above it.
+    required: true
+  count:
+    description: o200k (default) or chars4. anthropic also works if ANTHROPIC_API_KEY is in the step's env.
+    required: false
+    default: o200k
+  timeout:
+    description: Deadline in milliseconds for starting the server and listing its tools.
+    required: false
+    default: '30000'
+  working-directory:
+    description: Directory to run the command in.
+    required: false
+    default: '.'
+
+outputs:
+  tokens:
+    description: Total tokens of the tool definitions.
+    value: ${{ steps.measure.outputs.tokens }}
+  report:
+    description: Path to the JSON report.
+    value: ${{ steps.measure.outputs.report }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check Node.js
+      shell: bash
+      run: |
+        node -e 'const major = Number(process.versions.node.split(".")[0]); if (major < 22) { console.error(`mcp-footprint needs Node.js 22 or newer, found ${process.version}. Add actions/setup-node before this step.`); process.exit(2); }'
+
+    - name: Install mcp-footprint
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      # npm ci runs the prepare script, which builds dist/.
+      run: npm ci --no-audit --no-fund --loglevel=error
+
+    - name: Measure
+      id: measure
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        MCPF_BIN: ${{ github.action_path }}/dist/bin.js
+        MCPF_COMMAND: ${{ inputs.command }}
+        MCPF_FROM_JSON: ${{ inputs.from-json }}
+        MCPF_BUDGET: ${{ inputs.budget }}
+        MCPF_COUNT: ${{ inputs.count }}
+        MCPF_TIMEOUT: ${{ inputs.timeout }}
+      run: |
+        report="$RUNNER_TEMP/mcp-footprint-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$RANDOM.json"
+        args=(--budget "$MCPF_BUDGET" --count "$MCPF_COUNT" --timeout "$MCPF_TIMEOUT" --out "$report")
+        if [ -n "$MCPF_FROM_JSON" ] && [ -n "$MCPF_COMMAND" ]; then
+          echo "::error::set either command or from-json, not both"; exit 2
+        elif [ -n "$MCPF_FROM_JSON" ]; then
+          args+=(--from-json "$MCPF_FROM_JSON")
+        elif [ -n "$MCPF_COMMAND" ]; then
+          args+=(-- sh -c "$MCPF_COMMAND")
+        else
+          echo "::error::set command or from-json"; exit 2
+        fi
+
+        set +e
+        node "$MCPF_BIN" "${args[@]}" | tee "$report.txt"
+        status=${PIPESTATUS[0]}
+        set -e
+
+        if [ -f "$report" ]; then
+          tokens=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).total.tokens)' "$report")
+          echo "tokens=$tokens" >> "$GITHUB_OUTPUT"
+          echo "report=$report" >> "$GITHUB_OUTPUT"
+          { echo '### mcp-footprint'; echo; echo '```text'; cat "$report.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+        fi
+        if [ "$status" -eq 1 ]; then
+          echo "::error::tool definitions are over the budget of $MCPF_BUDGET tokens"
+        fi
+        exit "$status"
