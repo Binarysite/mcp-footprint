@@ -60,7 +60,7 @@ Everything after `--` is the server command, passed through untouched.
 | `--json` | print the report as JSON |
 | `--out <file>` | also write the JSON report to a file |
 | `--save-tools <file>` | write the server's raw tools/list result, for `--from-json` later |
-| `--timeout <ms>` | deadline for starting the server and listing everything (default 30000) |
+| `--timeout <ms>` | deadline for the whole run: starting the server, listing, and counting (default 30000). After a timeout the server gets 200 ms to exit, then 200 ms after SIGTERM, so the run ends within about the timeout plus 0.5 s |
 | `--model <id>` | model for `--count anthropic` (default `claude-opus-5-5`) |
 | `--verbose` | pass the server's stderr through |
 
@@ -117,6 +117,7 @@ Prompts and resources are listed and counted when a server advertises them, but 
 ## Limits
 
 - stdio only. HTTP and SSE transports are out of scope for v0.1.
+- A single tool definition over 64 KB of JSON is refused (exit 2), and a server that writes 64 MB without a newline is stopped. Real servers are far below both.
 - Tokenizers differ. o200k is not Claude's tokenizer, and Anthropic's token-counting docs say Claude 4.7 and later models produce roughly 30% more tokens than earlier Claude models for the same text. Compare servers with one mode, not across modes.
 - Vendor system-prompt overhead for tool use is not included, except in `anthropic` mode's difference.
 - mcp-footprint connects with the 2025-era `initialize` handshake and declares no client capabilities. A server that registers tools only for clients with sampling, elicitation or roots reports fewer tools than a full client sees.

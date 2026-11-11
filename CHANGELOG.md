@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- Counting is no longer quadratic on long runs of one character (10 KB of `a` took 6.5 s, 40 KB more than 80 s). The o200k merge now uses a priority queue over js-tiktoken's rank table; the ids are unchanged.
+- `--timeout` now bounds the whole run, counting included: o200k counting runs in a worker thread that is terminated at the deadline.
+- A tool definition over 64 KB of JSON is refused with exit 2.
+- A server that writes without ever ending a line is stopped once 64 MB are pending, instead of growing memory without limit.
+- After a timeout or other failure, shutdown waits 200 ms per step instead of 2 s, so the run ends within about `--timeout` + 0.5 s.
+
 ## [0.1.1] - 2026-11-11
 
 ### Security

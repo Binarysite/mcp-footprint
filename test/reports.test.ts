@@ -3,7 +3,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import { O200kCounter } from '../src/counters.js';
 import { parseTools } from '../src/load.js';
-import { measure } from '../src/measure.js';
+import { MAX_TOOL_BYTES, measure } from '../src/measure.js';
 import { SERVERS, type ReferenceReport } from '../scripts/measure-reference.js';
 
 const dir = new URL('../../reports/', import.meta.url);
@@ -43,6 +43,11 @@ for (const file of files) {
     assert.deepEqual(remeasured.total, report.report.total);
     assert.deepEqual(remeasured.offenders, report.report.offenders);
     assert.equal(remeasured.overhead, 0);
+  });
+
+  test(`${file}: every tool fits under the size cap with room to spare`, async () => {
+    const { report } = await load(file);
+    for (const tool of report.report.tools) assert.ok(tool.chars * 4 < MAX_TOOL_BYTES, `${tool.name}: ${tool.chars} chars`);
   });
 
   test(`${file}: contains no local paths, user names or secrets`, async () => {

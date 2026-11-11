@@ -1,6 +1,6 @@
 import { Client, type Implementation, type Prompt, type Resource, type Tool } from '@modelcontextprotocol/client';
 import { FootprintError, TimeoutError } from './errors.js';
-import { ProcessTransport } from './stdio.js';
+import { FAILURE_GRACE_MS, ProcessTransport } from './stdio.js';
 import { VERSION } from './version.js';
 
 export interface CollectOptions {
@@ -40,6 +40,7 @@ export async function collectFromServer(options: CollectOptions): Promise<Collec
     ...(options.onStderr !== undefined && { onStderr: options.onStderr }),
   });
   const session = new Session(transport, options.timeoutMs, options.signal);
+  let failed = true;
   try {
     const client = new Client({ name: 'mcp-footprint', version: VERSION }, { capabilities: {} });
     // connect() starts the transport, then runs the initialize handshake.
@@ -67,6 +68,7 @@ export async function collectFromServer(options: CollectOptions): Promise<Collec
           }),
         )
       : null;
+    failed = false;
     return {
       server: client.getServerVersion() ?? null,
       tools: tools.items,
@@ -76,7 +78,11 @@ export async function collectFromServer(options: CollectOptions): Promise<Collec
     };
   } finally {
     session.dispose();
-    await transport.shutdown();
+    // A healthy server gets the full grace to exit on its own. After a
+    // timeout, Ctrl-C or any other failure the run is already over, so the
+    // server gets a short one: the CLI then ends within --timeout plus about
+    // 2 x FAILURE_GRACE_MS.
+    await transport.shutdown(failed ? Math.min(options.graceMs ?? FAILURE_GRACE_MS, FAILURE_GRACE_MS) : undefined);
   }
 }
 
@@ -172,6 +178,9 @@ class Session {
 
   #exitedEarly(step: string): Promise<never> {
     return this.#transport.exited.then(({ code, signal }) => {
+      // The transport stopped the server itself and says why.
+      const fatal = this.#transport.fatalError;
+      if (fatal) throw this.#withStderr(new FootprintError(fatal.message));
       const how = signal ? `signal ${signal}` : `code ${String(code)}`;
       throw this.#withStderr(new FootprintError(`server exited (${how}) during ${step}`));
     });

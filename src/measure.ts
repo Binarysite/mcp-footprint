@@ -56,11 +56,29 @@ export interface MeasureInput {
 }
 
 const OFFENDERS = 3;
+const fmt = new Intl.NumberFormat('en-US');
+
+/**
+ * Largest tool definition accepted, in UTF-8 bytes of its JSON. Real tools
+ * are a few KB, and test/reports.test.ts checks that every measured reference
+ * tool fits.
+ * The cap keeps one hostile definition from costing minutes of counting or a
+ * huge API request.
+ */
+export const MAX_TOOL_BYTES = 64 * 1024;
 
 export async function measure(input: MeasureInput, counter: Counter): Promise<Report> {
   const definitions = input.tools.map(toToolDefinition);
-  // Fail with a clear error before any counter (or API request) sees a schema too deep to serialize.
-  for (const definition of definitions) stringify(definition, definition.name);
+  // Fail with a clear error before any counter (or API request) sees a schema
+  // too deep to serialize or a definition too big to count.
+  for (const definition of definitions) {
+    const bytes = Buffer.byteLength(stringify(definition, definition.name));
+    if (bytes > MAX_TOOL_BYTES) {
+      throw new FootprintError(
+        `tool "${definition.name}" is ${fmt.format(bytes)} bytes as JSON; the limit is ${fmt.format(MAX_TOOL_BYTES)}. Real tool definitions are a few KB, and one this size could stall the count.`,
+      );
+    }
+  }
   const counts = await counter.countTools(definitions);
   const total = counts.total;
   const tools = definitions

@@ -24,8 +24,12 @@ Options:
   --json               print the report as JSON
   --out <file>         also write the JSON report to a file
   --save-tools <file>  write the server's tools/list result to a file
-  --timeout <ms>       deadline for the whole server session, and for each
-                       API request with --count anthropic (default 30000)
+  --timeout <ms>       deadline for the whole run: starting the server,
+                       listing, and counting (default 30000). With --count
+                       anthropic it bounds each API request instead of the
+                       count. After a timeout the server gets 200 ms to exit
+                       once stdin is closed and 200 ms after SIGTERM, then
+                       SIGKILL: the run ends within about --timeout + 0.5 s
   --model <id>         model for --count anthropic (default ${DEFAULT_ANTHROPIC_MODEL})
   --verbose            pass the server's stderr through
   -h, --help           show this help
@@ -132,10 +136,11 @@ function positiveInteger(text: string, flag: string): number {
   return value;
 }
 
-async function createCounter(options: Options, io: Io): Promise<Counter> {
+function createCounter(options: Options, io: Io, deadline: number): Counter {
   switch (options.count) {
     case 'o200k':
-      return O200kCounter.load();
+      // In a worker thread that is terminated at the deadline.
+      return O200kCounter.inWorker({ deadline, timeoutMs: options.timeoutMs });
     case 'chars4':
       return new Chars4Counter();
     case 'anthropic': {
@@ -190,6 +195,8 @@ async function gather(options: Options, io: Io): Promise<MeasureInput> {
 
 /** Runs the CLI and returns the exit code. Never throws. */
 export async function main(argv: readonly string[], io: Io): Promise<number> {
+  const started = Date.now();
+  let counter: Counter | undefined;
   try {
     const parsed = parseCli(argv);
     if (parsed.kind === 'help') {
@@ -202,7 +209,7 @@ export async function main(argv: readonly string[], io: Io): Promise<number> {
     }
     const { options } = parsed;
     // Build the counter first, so a missing API key fails before the server starts.
-    const counter = await createCounter(options, io);
+    counter = createCounter(options, io, started + options.timeoutMs);
     const report = withBudget(await measure(await gather(options, io), counter), options.budget);
     if (options.out !== undefined) await writeFile(options.out, renderJson(report));
     io.stdout(options.json ? renderJson(report) : renderText(report));
@@ -217,5 +224,7 @@ export async function main(argv: readonly string[], io: Io): Promise<number> {
     io.stderr(`mcp-footprint: ${sanitizeMessage(message)}\n`);
     if (error instanceof UsageError) io.stderr('Run mcp-footprint --help for usage.\n');
     return EXIT.error;
+  } finally {
+    await counter?.close?.();
   }
 }
