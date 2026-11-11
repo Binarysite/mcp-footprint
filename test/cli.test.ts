@@ -110,7 +110,8 @@ test('--out writes the JSON report next to the text output', async () => {
   await main(['--count', 'chars4', '--out', out, '--from-json', path], io);
   const report = JSON.parse(await readFile(out, 'utf8')) as Report;
   assert.equal(report.counter.mode, 'chars4');
-  assert.equal(report.counter.exact, false);
+  assert.equal(report.counter.tokenizer, null);
+  assert.equal(report.counter.billed, false);
   assert.match(io.out, /est\. tokens \(chars\/4\)/);
   assert.match(io.out, /an estimate, not a tokenizer/);
 });
@@ -247,4 +248,8 @@ test('the o200k label says what the number is and is not', async () => {
   await main(['--from-json', await toolsFile()], text);
   assert.ok(text.out.includes(`counted with ${label}`));
   assert.doesNotMatch(text.out + USAGE, /exact/);
+  const counter = (JSON.parse(io.out) as Report).counter as unknown as Record<string, unknown>;
+  assert.equal(counter.tokenizer, 'o200k_base');
+  assert.equal(counter.billed, false);
+  assert.ok(!('exact' in counter));
 });

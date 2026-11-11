@@ -18,7 +18,7 @@
   },
   "report": {
     "tool": "mcp-footprint",
-    "version": "0.1.1",
+    "version": "0.2.0",
     "source": {
       "kind": "stdio",
       "command": [
@@ -34,7 +34,8 @@
       "mode": "o200k",
       "unit": "o200k tokens",
       "label": "o200k_base tokens of each tool's JSON (a comparable size, not any provider's billed count)",
-      "exact": true
+      "tokenizer": "o200k_base",
+      "billed": false
     },
     "total": {
       "tools": 2,

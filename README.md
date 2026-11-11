@@ -112,7 +112,7 @@ Servers published under their vendor's own npm scope that list their tools witho
 | `@upstash/context7-mcp` | 4.6.0 | 2 | 1,060 | `resolve-library-id` (607) | [context7-mcp.json](reports/context7-mcp.json) |
 | `@modelcontextprotocol/server-sequential-thinking` | 2.1.1 | 1 | 488 | `sequentialthinking` (488) | [server-sequential-thinking.json](reports/server-sequential-thinking.json) |
 
-Measured 2026-11-11, Node v24.22.2, o200k_base via js-tiktoken 1.0.21, mcp-footprint 0.1.1.
+Measured 2026-11-11, Node v24.22.2, o200k_base via js-tiktoken 1.0.21, mcp-footprint 0.2.0.
 
 \* `@playwright/mcp` registers more tools when started with `--caps` (config, network, storage, devtools, vision, pdf, testing, per its README). It was measured with no flags, so they are not counted.
 

@@ -225,8 +225,10 @@ export class ProcessTransport implements Transport {
     try {
       process.kill(-child.pid, signal);
     } catch (error) {
-      // ESRCH: the group is already empty.
-      if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
+      // ESRCH: the group is already empty. EPERM: macOS says this when every
+      // member is a zombie awaiting reaping; there is nothing left to signal.
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== 'ESRCH' && code !== 'EPERM') throw error;
     }
   }
 }

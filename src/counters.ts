@@ -12,11 +12,13 @@ export interface CounterInfo {
   unit: string;
   /** One line that says exactly what the number is. */
   label: string;
+  /** The tokenizer that produced the number, or null for the chars/4 estimate. */
+  tokenizer: string | null;
   /**
-   * True when a tokenizer produced the number, false for the chars/4
-   * estimate. It says nothing about billing: no mode reproduces a bill.
+   * Whether the number is what a provider bills. False for every local
+   * counter; the anthropic mode counts with the API but is still not a bill.
    */
-  exact: boolean;
+  billed: boolean;
   model?: string;
 }
 
@@ -72,7 +74,8 @@ export class O200kCounter implements Counter {
     mode: 'o200k',
     unit: 'o200k tokens',
     label: O200K_LABEL,
-    exact: true,
+    tokenizer: 'o200k_base',
+    billed: false,
   };
 
   readonly #batch: CountBatch;
@@ -185,7 +188,8 @@ export class Chars4Counter extends LocalCounter {
     mode: 'chars4',
     unit: 'est. tokens (chars/4)',
     label: 'chars/4: an estimate, not a tokenizer (UTF-16 length of the JSON / 4, rounded up)',
-    exact: false,
+    tokenizer: null,
+    billed: false,
   };
 
   protected count(text: string): number {

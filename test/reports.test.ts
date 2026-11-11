@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { O200kCounter } from '../src/counters.js';
 import { parseTools } from '../src/load.js';
 import { MAX_TOOL_BYTES, measure } from '../src/measure.js';
+import { VERSION } from '../src/version.js';
 import { SERVERS, type ReferenceReport } from '../scripts/measure-reference.js';
 
 const dir = new URL('../../reports/', import.meta.url);
@@ -22,6 +23,10 @@ test('every pinned reference server has a report for that exact version', async 
     assert.equal(report.report.server?.version, server.serverVersion ?? server.version);
     assert.match(report.integrity, /^sha512-/);
     assert.equal(report.report.counter.mode, 'o200k');
+    assert.equal(report.report.counter.tokenizer, 'o200k_base');
+    assert.equal(report.report.counter.billed, false);
+    assert.ok(!('exact' in report.report.counter));
+    assert.equal(report.report.version, VERSION);
   }
 });
 

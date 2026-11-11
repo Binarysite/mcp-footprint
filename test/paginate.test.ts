@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { describeSdkError, MAX_PAGES, paginate } from '../src/collect.js';
+import { describeSdkError, MAX_ITEMS, MAX_PAGES, paginate } from '../src/collect.js';
 import { FootprintError } from '../src/errors.js';
 
 test('follows nextCursor until it is absent', async () => {
@@ -40,9 +40,20 @@ test(`stops after ${MAX_PAGES} pages`, async () => {
 });
 
 test('a page with hundreds of thousands of items does not overflow the stack', async () => {
-  const big = Array.from({ length: 500_000 }, (_, i) => i);
+  const big = Array.from({ length: MAX_ITEMS }, (_, i) => i);
   const result = await paginate('tools/list', () => Promise.resolve({ items: big }));
-  assert.equal(result.items.length, 500_000);
+  assert.equal(result.items.length, MAX_ITEMS);
+});
+
+test('stops when the pages add up to more than MAX_ITEMS items', async () => {
+  const page = Array.from({ length: 10_000 }, (_, i) => i);
+  let n = 0;
+  await assert.rejects(
+    paginate('tools/list', () => Promise.resolve({ items: page, nextCursor: String(n++) })),
+    (error: unknown) => error instanceof FootprintError && /more than 100000 items; stopping/.test(error.message),
+  );
+  // 10 pages reach the cap exactly, the 11th crosses it.
+  assert.equal(n, 11);
 });
 
 test('describeSdkError keeps the first validation problem and passes other errors through', () => {

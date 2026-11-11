@@ -4,7 +4,7 @@ import { once } from 'node:events';
 import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { test } from 'node:test';
+import { mock, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { EXIT, main, type Io } from '../src/cli.js';
 import type { Report } from '../src/measure.js';
@@ -211,4 +211,29 @@ test('an invalid inputSchema is reported by its first problem, not a dump', asyn
   assert.equal(result.code, EXIT.error);
   assert.match(result.err, /tools\/list failed: Invalid result for tools\/list: tools\.0\.inputSchema\.type: Invalid input: expected "object" \(and 59 more problems\)/);
   assert.ok(result.err.length < 400, `${result.err.length} chars`);
+});
+
+test('EPERM from the group sweep (macOS, zombies) does not replace the real error', { skip: !posix }, async () => {
+  const pidFile = join(await mkdtemp(join(tmpdir(), 'mcp-footprint-eperm-')), 'pids');
+  const real = process.kill.bind(process);
+  const stub = mock.method(process, 'kill', (pid: number, signal?: string | number): true => {
+    if (pid < 0) {
+      // Do the work so nothing leaks, then fail the way macOS does.
+      try {
+        real(pid, signal);
+      } catch {
+        // already gone
+      }
+      throw Object.assign(new Error('kill EPERM'), { code: 'EPERM' });
+    }
+    return real(pid, signal);
+  });
+  try {
+    const result = await run(['--timeout', '800', '--', node, hangServer, pidFile], { graceMs: 200 });
+    assert.equal(result.code, EXIT.error);
+    assert.match(result.err, /timed out after 800 ms waiting for initialize/);
+    assert.doesNotMatch(result.err, /EPERM|unexpected error/);
+  } finally {
+    stub.mock.restore();
+  }
 });

@@ -17,7 +17,9 @@ test('o200k matches the reference token ids for a known string', async () => {
   assert.deepEqual(new Tiktoken(ranks).encode('hello world'), [24912, 2375]);
   const counter = await O200kCounter.load();
   assert.equal(await counter.countText('hello world'), 2);
-  assert.equal(counter.info.exact, true);
+  assert.equal(counter.info.tokenizer, 'o200k_base');
+  assert.equal(counter.info.billed, false);
+  assert.ok(!('exact' in counter.info));
 });
 
 test('o200k counts special-token strings as plain text', async () => {
@@ -36,7 +38,8 @@ test('local counters total the per-tool counts with no overhead', async () => {
 test('chars/4 rounds up and says it is an estimate', async () => {
   const counter = new Chars4Counter();
   assert.equal(await counter.countText('abcde'), 2);
-  assert.equal(counter.info.exact, false);
+  assert.equal(counter.info.tokenizer, null);
+  assert.equal(counter.info.billed, false);
   assert.match(counter.info.label, /estimate/);
   const counts = await counter.countTools(tools);
   assert.deepEqual(
