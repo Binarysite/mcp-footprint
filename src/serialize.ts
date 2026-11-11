@@ -37,20 +37,27 @@ export interface SchemaShape {
   properties: number;
 }
 
+/**
+ * Walks the schema with an explicit stack: a server controls the schema, and a
+ * recursive walk overflows the call stack on a few thousand nested levels.
+ */
 export function schemaShape(schema: unknown): SchemaShape {
   let properties = 0;
+  let depth = 0;
   // isMap: value is the object under a "properties" keyword, so its keys are
   // property names, and a property may itself be called "properties".
-  const visit = (value: unknown, isMap: boolean): number => {
-    if (value === null || typeof value !== 'object') return 0;
+  const stack: { value: unknown; isMap: boolean; level: number }[] = [{ value: schema, isMap: false, level: 1 }];
+  for (let item = stack.pop(); item !== undefined; item = stack.pop()) {
+    const { value, isMap, level } = item;
+    if (value === null || typeof value !== 'object') continue;
+    depth = Math.max(depth, level);
     if (Array.isArray(value)) {
-      return 1 + value.reduce((deepest: number, child: unknown) => Math.max(deepest, visit(child, false)), 0);
+      for (const child of value as unknown[]) stack.push({ value: child, isMap: false, level: level + 1 });
+      continue;
     }
     const entries = Object.entries(value as Record<string, unknown>);
     if (isMap) properties += entries.length;
-    let deepest = 0;
-    for (const [key, child] of entries) deepest = Math.max(deepest, visit(child, !isMap && key === 'properties'));
-    return 1 + deepest;
-  };
-  return { depth: visit(schema, false), properties };
+    for (const [key, child] of entries) stack.push({ value: child, isMap: !isMap && key === 'properties', level: level + 1 });
+  }
+  return { depth, properties };
 }

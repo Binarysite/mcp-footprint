@@ -2,6 +2,27 @@ import type { ListMeasure, Ranked, Report } from './measure.js';
 
 const fmt = new Intl.NumberFormat('en-US');
 const n = (value: number): string => fmt.format(value);
+/**
+ * Names, versions and paths come from the server or a file, so they can carry
+ * escape sequences that clear the screen, retitle the window or forge report
+ * rows. Control characters become U+FFFD and long values are cut.
+ */
+export const MAX_TEXT_WIDTH = 120;
+/* eslint-disable no-control-regex -- matching control characters is the point */
+const CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g;
+const CONTROL_EXCEPT_NEWLINE_TAB = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u2028\u2029]/g;
+/* eslint-enable no-control-regex */
+
+export function sanitize(text: string, max = MAX_TEXT_WIDTH): string {
+  const clean = text.replace(CONTROL, '\uFFFD');
+  return clean.length > max ? `${clean.slice(0, max - 1)}…` : clean;
+}
+
+/** For multi-line messages: keeps \n and \t, neutralises everything else. */
+export function sanitizeMessage(text: string): string {
+  return text.replace(CONTROL_EXCEPT_NEWLINE_TAB, '\uFFFD');
+}
+
 const pct = (share: number): string => `${(share * 100).toFixed(1)}%`;
 
 /** The human-readable report. Plain text, no color, stable for snapshots. */
@@ -9,11 +30,13 @@ export function renderText(report: Report): string {
   const { counter, total } = report;
   const lines: string[] = [];
 
-  const subject = report.server
-    ? `${report.server.name} ${report.server.version}`
-    : report.source.kind === 'file'
-      ? report.source.path
-      : (report.source.command[0] ?? 'server');
+  const subject = sanitize(
+    report.server
+      ? `${report.server.name} ${report.server.version}`
+      : report.source.kind === 'file'
+        ? report.source.path
+        : (report.source.command[0] ?? 'server'),
+  );
   const pages = total.pages === null ? '' : `, ${plural(total.pages, 'page')}`;
   lines.push(`${subject}: ${plural(total.tools, 'tool')}${pages}`);
   lines.push(`counted with ${counter.label}`);
@@ -23,7 +46,7 @@ export function renderText(report: Report): string {
   const row = (tokens: string, share: string, name: string): string =>
     `  ${tokens.padStart(width)}  ${share.padStart(6)}  ${name}`;
   lines.push(row(counter.unit, 'share', 'tool'));
-  for (const tool of report.tools) lines.push(row(n(tool.tokens), pct(tool.share), tool.name));
+  for (const tool of report.tools) lines.push(row(n(tool.tokens), pct(tool.share), sanitize(tool.name)));
   if (report.overhead !== 0) {
     const share = total.tokens > 0 ? report.overhead / total.tokens : 0;
     lines.push(row(n(report.overhead), pct(share), '(tool-use overhead, not tied to one tool)'));
@@ -63,7 +86,7 @@ function plural(count: number, word: string): string {
 
 function ranked(entries: readonly Ranked[], describe: (value: number) => string): string {
   if (entries.length === 0) return '-';
-  return entries.map((e) => `${e.name} (${describe(e.value)})`).join(', ');
+  return entries.map((e) => `${sanitize(e.name)} (${describe(e.value)})`).join(', ');
 }
 
 function listLine(label: string, list: ListMeasure | null, unit: string): string | null {

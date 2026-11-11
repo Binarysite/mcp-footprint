@@ -38,3 +38,9 @@ test(`stops after ${MAX_PAGES} pages`, async () => {
   );
   assert.equal(n, MAX_PAGES);
 });
+
+test('a page with hundreds of thousands of items does not overflow the stack', async () => {
+  const big = Array.from({ length: 500_000 }, (_, i) => i);
+  const result = await paginate('tools/list', () => Promise.resolve({ items: big }));
+  assert.equal(result.items.length, 500_000);
+});

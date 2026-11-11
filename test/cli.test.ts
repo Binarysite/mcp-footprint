@@ -151,3 +151,55 @@ test('unexpected errors are reported, not thrown', async () => {
   assert.equal(await main(['--from-json', await toolsFile()], io), EXIT.error);
   assert.match(io.err, /unexpected error: Error: stdout closed/);
 });
+
+test('error messages that echo untrusted text cannot carry escape sequences', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'mcp-footprint-cli-'));
+  const path = join(dir, 'bad.json');
+  await writeFile(path, JSON.stringify({ tools: [{ name: '\u001b[2Jx', description: 5, inputSchema: {} }] }));
+  const io = capture();
+  assert.equal(await main(['--from-json', path], io), EXIT.error);
+  assert.equal(io.err.includes('\u001b'), false);
+  assert.match(io.err, /not a string/);
+});
+
+test('anthropic mode refuses an insecure base URL before any request', async () => {
+  const io = capture({ ANTHROPIC_API_KEY: 'k', ANTHROPIC_BASE_URL: 'http://proxy.example' });
+  assert.equal(await main(['--count', 'anthropic', '--from-json', await toolsFile()], io), EXIT.error);
+  assert.match(io.err, /https/);
+});
+
+test('Ctrl-C interrupts anthropic mode', async () => {
+  const controller = new AbortController();
+  const io = capture(
+    { ANTHROPIC_API_KEY: 'k' },
+    {
+      signal: controller.signal,
+      fetch: (_input, init) =>
+        new Promise((_, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            reject(init.signal?.reason as Error);
+          });
+          setTimeout(() => {
+    controller.abort();
+  }, 10);
+        }),
+    },
+  );
+  assert.equal(await main(['--count', 'anthropic', '--from-json', await toolsFile()], io), EXIT.interrupted);
+});
+
+test('--timeout bounds each anthropic request', async () => {
+  const io = capture(
+    { ANTHROPIC_API_KEY: 'k' },
+    {
+      fetch: (_input, init) =>
+        new Promise((_, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            reject(init.signal?.reason as Error);
+          });
+        }),
+    },
+  );
+  assert.equal(await main(['--count', 'anthropic', '--timeout', '30', '--from-json', await toolsFile()], io), EXIT.error);
+  assert.match(io.err, /timed out after 30 ms/);
+});

@@ -105,7 +105,8 @@ export async function paginate<T>(
   for (;;) {
     const page = await fetchPage(cursor);
     pages += 1;
-    items.push(...page.items);
+    // A loop, not push(...items): spreading a huge page overflows the call stack.
+    for (const item of page.items) items.push(item);
     cursor = page.nextCursor === '' ? undefined : page.nextCursor;
     if (cursor === undefined) return { items, pages };
     if (seen.has(cursor)) {

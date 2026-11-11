@@ -18,9 +18,21 @@ export interface AnthropicCounterOptions {
   concurrency?: number;
   /** Retries after a 429 or 5xx. */
   retries?: number;
-  /** Wait before a retry when the response has no retry-after header. */
+  /** Wait before a retry when the response has no usable retry-after header. */
   retryDelayMs?: number;
+  /** Longest wait before a retry, whatever retry-after says. */
+  maxRetryDelayMs?: number;
+  /** Deadline for each HTTP request. */
+  timeoutMs?: number;
+  /** Aborts requests and retry waits early, for example on Ctrl-C. */
+  signal?: AbortSignal;
+  /** Allow a plain http: base URL that is not loopback. Off by default: the key would travel in clear text. */
+  allowInsecureBaseUrl?: boolean;
 }
+
+/** A server-chosen retry-after must not park the CLI for minutes. */
+export const MAX_RETRY_DELAY_MS = 30_000;
+export const DEFAULT_REQUEST_TIMEOUT_MS = 60_000;
 
 type Message = { role: 'user'; content: string };
 
@@ -47,18 +59,25 @@ const PROBE: Message[] = [{ role: 'user', content: 'x' }];
  */
 export class AnthropicCounter implements Counter {
   readonly info: CounterInfo;
-  readonly #options: Required<Omit<AnthropicCounterOptions, 'fetch'>> & { fetch: typeof fetch };
+  readonly #options: Required<Omit<AnthropicCounterOptions, 'fetch' | 'signal' | 'baseUrl' | 'allowInsecureBaseUrl'>> & {
+    fetch: typeof fetch;
+    signal: AbortSignal | undefined;
+  };
+  readonly #endpoint: URL;
 
   constructor(options: AnthropicCounterOptions) {
+    this.#endpoint = endpointFor(options.baseUrl ?? DEFAULT_ANTHROPIC_BASE_URL, options.allowInsecureBaseUrl === true);
     this.#options = {
       apiKey: options.apiKey,
       model: options.model ?? DEFAULT_ANTHROPIC_MODEL,
       version: options.version ?? ANTHROPIC_VERSION,
-      baseUrl: trimTrailingSlashes(options.baseUrl ?? DEFAULT_ANTHROPIC_BASE_URL),
       fetch: options.fetch ?? fetch,
       concurrency: options.concurrency ?? 4,
       retries: options.retries ?? 2,
       retryDelayMs: options.retryDelayMs ?? 1000,
+      maxRetryDelayMs: options.maxRetryDelayMs ?? MAX_RETRY_DELAY_MS,
+      timeoutMs: options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
+      signal: options.signal,
     };
     this.info = {
       mode: 'anthropic',
@@ -109,24 +128,55 @@ export class AnthropicCounter implements Counter {
   }
 
   async #count(body: CountRequest): Promise<number> {
-    const { apiKey, version, baseUrl, retries, retryDelayMs } = this.#options;
     for (let attempt = 0; ; attempt++) {
+      let retryAfter: string | null;
+      throwIfInterrupted(this.#options.signal);
+      // A ref'd timer, not AbortSignal.timeout(): that one is unref'd, and on Node 22 an idle loop then exits mid-request.
+      const deadline = new AbortController();
+      const timer = setTimeout(() => {
+        deadline.abort();
+      }, this.#options.timeoutMs);
+      try {
+        const result = await this.#attempt(body, attempt, deadline.signal);
+        if (typeof result === 'number') return result;
+        retryAfter = result.retryAfter;
+      } finally {
+        clearTimeout(timer);
+      }
+      const { retryDelayMs, maxRetryDelayMs, signal } = this.#options;
+      await sleep(retryDelay(retryAfter, retryDelayMs, maxRetryDelayMs), signal);
+    }
+  }
+
+  /** One HTTP attempt: the token count, or the retry-after header when the caller should retry. */
+  async #attempt(body: CountRequest, attempt: number, deadline: AbortSignal): Promise<number | { retryAfter: string | null }> {
+    const { apiKey, version, retries, timeoutMs, signal } = this.#options;
+    {
       let response: Response;
       try {
-        response = await this.#options.fetch(`${baseUrl}/v1/messages/count_tokens`, {
+        response = await this.#options.fetch(this.#endpoint.href, {
           method: 'POST',
           headers: { 'x-api-key': apiKey, 'anthropic-version': version, 'content-type': 'application/json' },
           body: JSON.stringify(body),
+          // Never follow a redirect: fetch would replay x-api-key to the new origin.
+          redirect: 'manual',
+          signal: signal ? AbortSignal.any([signal, deadline]) : deadline,
         });
       } catch (error) {
+        throwIfInterrupted(signal);
+        if (deadline.aborted) throw new FootprintError(`Anthropic count_tokens timed out after ${timeoutMs} ms`);
         throw new FootprintError(`Anthropic count_tokens request failed: ${(error as Error).message}`);
+      }
+      if (response.status >= 300 && response.status < 400) {
+        await response.body?.cancel();
+        throw new FootprintError(
+          `Anthropic count_tokens answered with a redirect (HTTP ${response.status}); not following it, the API key would be sent to another host. Check ANTHROPIC_BASE_URL.`,
+        );
       }
       const retryable = response.status === 429 || response.status >= 500;
       if (retryable && attempt < retries) {
         await response.body?.cancel();
-        const after = Number(response.headers.get('retry-after'));
-        await new Promise((resolve) => setTimeout(resolve, after > 0 ? after * 1000 : retryDelayMs));
-        continue;
+        return { retryAfter: response.headers.get('retry-after') };
       }
       const text = await response.text();
       let parsed: unknown;
@@ -146,6 +196,62 @@ export class AnthropicCounter implements Counter {
       return tokens;
     }
   }
+}
+
+const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]']);
+
+/**
+ * Validates the base URL once and returns the count_tokens endpoint under it.
+ * The API key goes in a header, so the URL must be https (http only for
+ * loopback, which the tests and local proxies use) and must not carry
+ * credentials of its own. A path prefix is kept; query and fragment are not.
+ */
+function endpointFor(baseUrl: string, allowInsecure: boolean): URL {
+  let base: URL;
+  try {
+    base = new URL(baseUrl);
+  } catch {
+    throw new FootprintError(`ANTHROPIC_BASE_URL is not a valid URL: ${JSON.stringify(baseUrl.slice(0, 100))}`);
+  }
+  if (base.username !== '' || base.password !== '') {
+    throw new FootprintError('the Anthropic base URL must not contain credentials; the key is sent in the x-api-key header');
+  }
+  const secure = base.protocol === 'https:';
+  const loopback = base.protocol === 'http:' && LOOPBACK.has(base.hostname);
+  if (!secure && !loopback && !(allowInsecure && base.protocol === 'http:')) {
+    throw new FootprintError(`the Anthropic base URL must use https: (http: is allowed only for localhost), not ${base.protocol}`);
+  }
+  return new URL(`${trimTrailingSlashes(base.pathname)}/v1/messages/count_tokens`, base.origin);
+}
+
+/** retry-after is delay-seconds or an HTTP date; anything else, or a non-positive value, uses the fallback. */
+function retryDelay(header: string | null, fallbackMs: number, maxMs: number): number {
+  let ms = fallbackMs;
+  if (header !== null && header.trim() !== '') {
+    const seconds = Number(header);
+    const date = Date.parse(header);
+    if (Number.isFinite(seconds) && seconds > 0) ms = seconds * 1000;
+    else if (Number.isNaN(seconds) && Number.isFinite(date) && date > Date.now()) ms = date - Date.now();
+  }
+  return Math.min(Math.max(ms, 0), maxMs);
+}
+
+function throwIfInterrupted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw new FootprintError('interrupted');
+}
+
+function sleep(ms: number, signal: AbortSignal | undefined): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const onAbort = (): void => {
+      clearTimeout(timer);
+      reject(new FootprintError('interrupted'));
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
 }
 
 /** Without a regex: /\/+$/ backtracks quadratically on a long run of slashes. */
