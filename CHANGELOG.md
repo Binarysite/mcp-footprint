@@ -22,7 +22,6 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - A tools/list result nested too deep for the SDK's validator is reported as such, not as "Maximum call stack size exceeded".
 - An invalid tool schema is reported by its first problem and a count of the rest, instead of a dump of every issue.
-
 - Counting is no longer quadratic on long runs of one character (10 KB of `a` took 6.5 s, 40 KB more than 80 s). The o200k merge now uses a priority queue over js-tiktoken's rank table; the ids are unchanged.
 - `--timeout` now bounds the whole run, counting included: o200k counting runs in a worker thread that is terminated at the deadline.
 - A tool definition over 64 KB of JSON is refused with exit 2.
