@@ -29,6 +29,12 @@ export interface Collected {
 /** Stops a server whose cursors never end; far above any real server. */
 export const MAX_PAGES = 1000;
 
+/**
+ * Most items (tools, prompts or resources) accepted across all pages. Without
+ * it a server could send endless full pages and fill memory before --timeout.
+ */
+export const MAX_ITEMS = 100_000;
+
 /** Starts a server over stdio, lists what it exposes, and stops it. */
 export async function collectFromServer(options: CollectOptions): Promise<Collected> {
   const transport = new ProcessTransport({
@@ -111,6 +117,7 @@ export async function paginate<T>(
     pages += 1;
     // A loop, not push(...items): spreading a huge page overflows the call stack.
     for (const item of page.items) items.push(item);
+    if (items.length > MAX_ITEMS) throw new FootprintError(`${method}: more than ${MAX_ITEMS} items; stopping`);
     cursor = page.nextCursor === '' ? undefined : page.nextCursor;
     if (cursor === undefined) return { items, pages };
     if (seen.has(cursor)) {
