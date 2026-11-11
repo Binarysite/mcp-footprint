@@ -77,7 +77,7 @@ test('countText is relative to the probe message', async () => {
 
 test('uses a custom base URL without a doubled slash', async () => {
   const calls: { url: string; init: RequestInit; body: Body }[] = [];
-  const counter = new AnthropicCounter({ apiKey: 'k', baseUrl: 'http://proxy.example/', fetch: fakeFetch(calls) });
+  const counter = new AnthropicCounter({ apiKey: 'k', baseUrl: 'http://proxy.example//', fetch: fakeFetch(calls) });
   await counter.countText('a');
   assert.equal(calls[0]?.url, 'http://proxy.example/v1/messages/count_tokens');
 });

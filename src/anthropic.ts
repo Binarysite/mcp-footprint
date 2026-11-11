@@ -54,7 +54,7 @@ export class AnthropicCounter implements Counter {
       apiKey: options.apiKey,
       model: options.model ?? DEFAULT_ANTHROPIC_MODEL,
       version: options.version ?? ANTHROPIC_VERSION,
-      baseUrl: (options.baseUrl ?? DEFAULT_ANTHROPIC_BASE_URL).replace(/\/+$/, ''),
+      baseUrl: trimTrailingSlashes(options.baseUrl ?? DEFAULT_ANTHROPIC_BASE_URL),
       fetch: options.fetch ?? fetch,
       concurrency: options.concurrency ?? 4,
       retries: options.retries ?? 2,
@@ -146,4 +146,11 @@ export class AnthropicCounter implements Counter {
       return tokens;
     }
   }
+}
+
+/** Without a regex: /\/+$/ backtracks quadratically on a long run of slashes. */
+function trimTrailingSlashes(url: string): string {
+  let end = url.length;
+  while (end > 0 && url[end - 1] === '/') end--;
+  return url.slice(0, end);
 }
