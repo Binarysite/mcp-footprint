@@ -34,7 +34,7 @@ resources  1, 35 o200k tokens (not in the total)
 ```
 <!-- sample-output:end -->
 
-This output is generated from [reports/server-memory.json](reports/server-memory.json), and a test fails if the two drift apart.
+This output is generated from [reports/server-memory.json](reports/server-memory.json), and a test fails if the two drift apart. The server in this command, `@modelcontextprotocol/server-memory` 2.1.1, needs Node.js 24 (its `engines` field says `>=24`); mcp-footprint itself runs on Node.js 22 or newer.
 
 ## Why
 
@@ -44,7 +44,7 @@ Claude Code's `/context` already shows per-server usage once a server is install
 
 ## Use
 
-Requires Node.js 22 or newer. The current reference servers require Node.js 24 themselves.
+mcp-footprint runs on Node.js 22 or newer; CI tests it on 22 and 24. The server you start must run on the same Node: the `@modelcontextprotocol` reference servers, including `server-memory` in the first command, need Node.js 24. `--from-json` starts no server and works on 22.
 
 ```sh
 # Start a server over stdio, list its tools, stop it, print the report
@@ -88,14 +88,15 @@ Exit codes: `0` ok, `1` over budget, `2` usage, server or API error, `130` inter
 
 ## In CI
 
-A composite action, used like size-limit. It needs Node.js 22 or newer on the runner.
+A composite action, used like size-limit. It needs Node.js 22 or newer on the runner, or 24 if `command` starts one of the `@modelcontextprotocol` reference servers. Actions are pinned by commit SHA, the same ones this repository's CI uses.
 
 ```yaml
-- uses: actions/setup-node@v7
+- uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+- uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
   with:
     node-version: 22
 - run: npm ci && npm run build
-- uses: Binarysite/mcp-footprint@v0.2.1
+- uses: Binarysite/mcp-footprint@6a5bd700a574e6be53a239c1fb07a0fc8d160cd6 # v0.2.1
   with:
     command: node dist/index.js
     budget: 3000
@@ -105,7 +106,7 @@ The step fails when the total goes over `budget`, writes the report to the job s
 
 ## Reference servers
 
-Servers published under their vendor's own npm scope that list their tools without credentials, pinned to exact versions: the reference servers from `@modelcontextprotocol`, plus Microsoft's Playwright server, Notion's and Upstash's Context7. Before a package was added, `npm view <package> repository.url maintainers` was checked to confirm the repository and publishers belong to the vendor. Each was installed with `--ignore-scripts` and started with an empty temp dir as its working directory and `HOME`, and only `PATH` in its environment. The filesystem server was given that empty dir as its one allowed directory. Each report holds the npm integrity hash, the full report and the raw tools/list result; a test re-measures the raw result and requires the committed numbers to match.
+Servers published under their vendor's own npm scope that list their tools without credentials, pinned to exact versions: the reference servers from `@modelcontextprotocol`, plus Microsoft's Playwright server, Notion's and Upstash's Context7. Before a package was added, `npm view <package> repository.url maintainers` was checked to confirm the repository and publishers belong to the vendor. Each was installed with `--ignore-scripts` and started with an empty temp dir as its working directory and `HOME`, and only `PATH` in its environment. The filesystem server was given that empty dir as its one allowed directory. All were measured on Node.js 24, because the four `@modelcontextprotocol` servers declare `engines: >=24`; the others declare 18 or newer (Playwright), 20.18.1 or newer (Context7) or nothing (Notion). mcp-footprint itself needs only 22. Each report holds the npm integrity hash, the full report and the raw tools/list result; a test re-measures the raw result and requires the committed numbers to match.
 
 <!-- reference-table:start -->
 | Server | Version | Tools | o200k tokens | Most expensive tool | Report |
@@ -166,4 +167,4 @@ npm run lint
 
 ## License
 
-MIT, copyright AURELIAI SpA.
+Built with Claude Code; the design decisions and reviews are mine. MIT, copyright AURELIAI SpA.

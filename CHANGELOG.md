@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- README: mcp-footprint runs on Node.js 22 or newer, while the `@modelcontextprotocol` reference servers (including the sample's) need Node.js 24; said next to the sample command and in the measurement section. Action examples are pinned by commit SHA, checked against `ci.yml` by a test. Notes that the project is built with Claude Code.
+
 ## [0.2.1] - 2026-11-11
 
 ### Changed
@@ -65,6 +71,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Composite GitHub Action (`action.yml`) for a budget in CI.
 - Measured reports for four official reference servers, and a README table generated from them.
 
+[Unreleased]: https://github.com/Binarysite/mcp-footprint/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/Binarysite/mcp-footprint/compare/v0.2.1...HEAD
 [0.2.1]: https://github.com/Binarysite/mcp-footprint/releases/tag/v0.2.1
 [0.2.0]: https://github.com/Binarysite/mcp-footprint/releases/tag/v0.2.0
 [0.1.1]: https://github.com/Binarysite/mcp-footprint/releases/tag/v0.1.1
