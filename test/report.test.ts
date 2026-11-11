@@ -152,3 +152,48 @@ test('rejects malformed files with a message that names the problem', async () =
   assert.throws(() => parseTools([{ name: 'a', description: 3, inputSchema: {} }], 'x'), /description that is not a string/);
   assert.throws(() => parseTools([{ name: 'a', inputSchema: [] }], 'x'), /no inputSchema object/);
 });
+
+const ESC = String.fromCharCode(27);
+const hasControl = (text: string): boolean => Array.from(text).some((c) => (c !== '\n' && c.charCodeAt(0) < 32) || (c.charCodeAt(0) >= 127 && c.charCodeAt(0) <= 159));
+
+test('text output neutralises terminal control characters from the server', async () => {
+  const hostile: MeasureInput = {
+    source: { kind: 'stdio', command: [`${ESC}]0;pwned\u0007cmd`] },
+    server: { name: `evil${ESC}[2J`, version: '1\r2' },
+    tools: [{ name: `a${ESC}[2Jb\nfake  100.0%  row`, description: 'd', inputSchema: { type: 'object' } }],
+    pages: 1,
+    prompts: null,
+    resources: null,
+  };
+  const report = await measure(hostile, new FakeCounter());
+  const text = renderText(report);
+  assert.equal(hasControl(text), false);
+  assert.match(text, /a\uFFFD\[2Jb\uFFFDfake/);
+  assert.match(text, /evil\uFFFD\[2J 1\uFFFD2/);
+  const file = renderText({ ...report, server: null, source: { kind: 'file', path: `x${ESC}[2Jy` }, tools: [] });
+  assert.equal(file.includes(ESC), false);
+  const cmd = renderText({ ...report, server: null });
+  assert.equal(hasControl(cmd), false);
+  // JSON stays raw: JSON.stringify already escapes control characters.
+  assert.deepEqual(JSON.parse(renderJson(report)), report);
+  assert.equal(renderJson(report).includes(ESC), false);
+});
+
+test('long names are truncated in the text report', async () => {
+  const report = await measure(
+    { ...input, tools: [{ name: 'n'.repeat(500), inputSchema: { type: 'object' } }] },
+    new FakeCounter(),
+  );
+  const text = renderText(report);
+  assert.ok(!text.includes('n'.repeat(200)));
+  assert.match(text, /n…/);
+});
+
+test('a schema too deep to serialize is a FootprintError, not a crash', async () => {
+  let schema: Record<string, unknown> = {};
+  for (let i = 0; i < 100_000; i++) schema = { a: schema };
+  await assert.rejects(
+    measure({ ...input, tools: [{ name: 'deep', inputSchema: schema }] }, new FakeCounter()),
+    (error: unknown) => error instanceof FootprintError && /deep/.test(error.message),
+  );
+});

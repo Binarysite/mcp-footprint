@@ -6,7 +6,7 @@ import { Chars4Counter, O200kCounter, type CountMode, type Counter } from './cou
 import { FootprintError, UsageError } from './errors.js';
 import { loadTools } from './load.js';
 import { measure, withBudget, type MeasureInput } from './measure.js';
-import { renderJson, renderText } from './render.js';
+import { renderJson, renderText, sanitizeMessage } from './render.js';
 import { VERSION } from './version.js';
 
 export const EXIT = { ok: 0, overBudget: 1, error: 2, interrupted: 130 } as const;
@@ -24,7 +24,8 @@ Options:
   --json               print the report as JSON
   --out <file>         also write the JSON report to a file
   --save-tools <file>  write the server's tools/list result to a file
-  --timeout <ms>       deadline for the whole server session (default 30000)
+  --timeout <ms>       deadline for the whole server session, and for each
+                       API request with --count anthropic (default 30000)
   --model <id>         model for --count anthropic (default ${DEFAULT_ANTHROPIC_MODEL})
   --verbose            pass the server's stderr through
   -h, --help           show this help
@@ -145,6 +146,8 @@ async function createCounter(options: Options, io: Io): Promise<Counter> {
         apiKey,
         model: options.model,
         ...(baseUrl && { baseUrl }),
+        timeoutMs: options.timeoutMs,
+        ...(io.signal && { signal: io.signal }),
         ...(io.fetch && { fetch: io.fetch }),
       });
     }
@@ -210,7 +213,8 @@ export async function main(argv: readonly string[], io: Io): Promise<number> {
       return EXIT.interrupted;
     }
     const message = error instanceof FootprintError ? error.message : `unexpected error: ${(error as Error).stack ?? String(error)}`;
-    io.stderr(`mcp-footprint: ${message}\n`);
+    // The message can echo tool names, paths or server stderr: strip terminal control characters.
+    io.stderr(`mcp-footprint: ${sanitizeMessage(message)}\n`);
     if (error instanceof UsageError) io.stderr('Run mcp-footprint --help for usage.\n');
     return EXIT.error;
   }
