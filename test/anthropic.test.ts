@@ -77,9 +77,9 @@ test('countText is relative to the probe message', async () => {
 
 test('uses a custom base URL without a doubled slash', async () => {
   const calls: { url: string; init: RequestInit; body: Body }[] = [];
-  const counter = new AnthropicCounter({ apiKey: 'k', baseUrl: 'http://proxy.example//', fetch: fakeFetch(calls) });
+  const counter = new AnthropicCounter({ apiKey: 'k', baseUrl: 'http://localhost:8080//', fetch: fakeFetch(calls) });
   await counter.countText('a');
-  assert.equal(calls[0]?.url, 'http://proxy.example/v1/messages/count_tokens');
+  assert.equal(calls[0]?.url, 'http://localhost:8080/v1/messages/count_tokens');
 });
 
 test('retries 429 and 5xx, then succeeds', async () => {
@@ -145,4 +145,131 @@ test('rejects a response without input_tokens', async () => {
 test('wraps network errors', async () => {
   const counter = new AnthropicCounter({ apiKey: 'k', fetch: () => Promise.reject(new Error('ECONNREFUSED')) });
   await assert.rejects(counter.countText('x'), /request failed: ECONNREFUSED/);
+});
+
+test('rejects base URLs that would leak the key', () => {
+  const make = (baseUrl: string, extra = {}): AnthropicCounter => new AnthropicCounter({ apiKey: 'k', baseUrl, ...extra });
+  assert.throws(() => make('http://proxy.example'), /https/);
+  assert.throws(() => make('ftp://proxy.example'), /https/);
+  assert.throws(() => make('not a url'), /not a valid URL/);
+  assert.throws(() => make('https://user:pw@proxy.example'), /credentials/);
+  assert.throws(() => make('https://user@proxy.example'), /credentials/);
+  assert.doesNotThrow(() => make('http://127.0.0.1:9'));
+  assert.doesNotThrow(() => make('http://localhost'));
+  assert.doesNotThrow(() => make('http://[::1]:9'));
+  assert.doesNotThrow(() => make('https://proxy.example/prefix'));
+  assert.doesNotThrow(() => make('http://proxy.example', { allowInsecureBaseUrl: true }));
+});
+
+test('keeps a path prefix in the base URL', async () => {
+  const calls: { url: string; init: RequestInit; body: Body }[] = [];
+  const counter = new AnthropicCounter({ apiKey: 'k', baseUrl: 'https://proxy.example/anthropic/', fetch: fakeFetch(calls) });
+  await counter.countText('a');
+  assert.equal(calls[0]?.url, 'https://proxy.example/anthropic/v1/messages/count_tokens');
+});
+
+test('never follows a redirect, so the key cannot be replayed elsewhere', async () => {
+  const seen: RequestInit['redirect'][] = [];
+  const counter = new AnthropicCounter({
+    apiKey: 'k',
+    fetch: (_input, init) => {
+      seen.push(init?.redirect);
+      return Promise.resolve(new Response(null, { status: 302, headers: { location: 'https://evil.example/' } }));
+    },
+  });
+  await assert.rejects(counter.countText('x'), /redirect/i);
+  assert.ok(seen.length > 0 && seen.every((r) => r === 'manual'));
+});
+
+test('a fetch that errors on redirect is reported as a failed request', async () => {
+  const counter = new AnthropicCounter({ apiKey: 'k', fetch: () => Promise.reject(new TypeError('fetch failed')) });
+  await assert.rejects(counter.countText('x'), /request failed/);
+});
+
+test('clamps a huge retry-after', async () => {
+  const counter = new AnthropicCounter({
+    apiKey: 'k',
+    concurrency: 1,
+    maxRetryDelayMs: 20,
+    fetch: (() => {
+      let n = 0;
+      return () =>
+        Promise.resolve(
+          n++ === 0 ? new Response('x', { status: 429, headers: { 'retry-after': '999999' } }) : Response.json({ input_tokens: 1 }),
+        );
+    })(),
+  });
+  const started = Date.now();
+  await counter.countText('x');
+  assert.ok(Date.now() - started < 2000);
+});
+
+test('understands an HTTP-date retry-after and falls back on garbage', async () => {
+  for (const [header, expectFast] of [
+    [new Date(Date.now() + 100_000).toUTCString(), true],
+    [new Date(Date.now() - 100_000).toUTCString(), true],
+    ['soon', true],
+    ['NaN', true],
+  ] as const) {
+    let n = 0;
+    const counter = new AnthropicCounter({
+      apiKey: 'k',
+      concurrency: 1,
+      retryDelayMs: 1,
+      maxRetryDelayMs: 30,
+      fetch: () =>
+        Promise.resolve(n++ === 0 ? new Response('x', { status: 429, headers: { 'retry-after': header } }) : Response.json({ input_tokens: 1 })),
+    });
+    const started = Date.now();
+    await counter.countText('x');
+    assert.equal(Date.now() - started < 1500, expectFast, header);
+  }
+});
+
+test('an abort signal cuts a retry sleep short', async () => {
+  const controller = new AbortController();
+  const counter = new AnthropicCounter({
+    apiKey: 'k',
+    concurrency: 1,
+    signal: controller.signal,
+    fetch: () => Promise.resolve(new Response('x', { status: 429, headers: { 'retry-after': '25' } })),
+  });
+  setTimeout(() => {
+    controller.abort();
+  }, 30);
+  const started = Date.now();
+  await assert.rejects(counter.countText('x'), /interrupted|aborted/i);
+  assert.ok(Date.now() - started < 2000);
+});
+
+test('passes a deadline signal to fetch and times out', async () => {
+  let signal: AbortSignal | null | undefined;
+  const counter = new AnthropicCounter({
+    apiKey: 'k',
+    timeoutMs: 30,
+    fetch: (_input, init) => {
+      signal = init?.signal;
+      return new Promise((_, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+            reject(init.signal?.reason as Error);
+          });
+      });
+    },
+  });
+  await assert.rejects(counter.countText('x'), /timed out after 30 ms/);
+  assert.ok(signal);
+});
+
+test('an already aborted signal fails before any request', async () => {
+  let calls = 0;
+  const counter = new AnthropicCounter({
+    apiKey: 'k',
+    signal: AbortSignal.abort(),
+    fetch: () => {
+      calls++;
+      return Promise.resolve(Response.json({ input_tokens: 1 }));
+    },
+  });
+  await assert.rejects(counter.countText('x'), /interrupted|aborted/i);
+  assert.equal(calls, 0);
 });
