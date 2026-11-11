@@ -4,7 +4,7 @@
   "description": "Measure how many context tokens an MCP server's tool definitions cost, and fail CI when they grow past a budget.",
   "type": "module",
   "bin": {
-    "mcp-footprint": "dist/cli.js"
+    "mcp-footprint": "dist/bin.js"
   },
   "exports": {
     ".": {

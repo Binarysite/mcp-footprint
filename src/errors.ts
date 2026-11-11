@@ -7,3 +7,8 @@ export class FootprintError extends Error {
 export class TimeoutError extends FootprintError {
   override readonly name = 'TimeoutError';
 }
+
+/** Bad command-line arguments. */
+export class UsageError extends FootprintError {
+  override readonly name = 'UsageError';
+}
