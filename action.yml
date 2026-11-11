@@ -18,7 +18,7 @@ inputs:
     description: Maximum total tokens for the tool definitions. The step fails above it.
     required: true
   count:
-    description: o200k (default) or chars4. anthropic also works if ANTHROPIC_API_KEY is in the step's env.
+    description: o200k (default) or chars4. anthropic is experimental and not accepted here.
     required: false
     default: o200k
   timeout:

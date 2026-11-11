@@ -8,6 +8,7 @@ import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderText } from '../src/render.js';
+import { VERSION } from '../src/version.js';
 import type { ReferenceReport } from './measure-reference.js';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -58,10 +59,15 @@ export function renderTable(reports: Map<string, ReferenceReport>): string {
   return lines.join('\n');
 }
 
+/**
+ * The command installs the current release, so a reader who copies it gets
+ * the hardened CLI. The release that took the measurement is in the
+ * "Measured ..." note under the table.
+ */
 export function renderSample(report: ReferenceReport): string {
   return [
     '```text',
-    `$ npx github:Binarysite/mcp-footprint#v${report.report.version} -- npx -y ${report.package}@${report.version}`,
+    `$ npx github:Binarysite/mcp-footprint#v${VERSION} -- npx -y ${report.package}@${report.version}`,
     renderText(report.report).trimEnd(),
     '```',
   ].join('\n');

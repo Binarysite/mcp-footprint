@@ -4,7 +4,21 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- The o200k label now reads "o200k_base tokens of each tool's JSON (a comparable size, not any provider's billed count)" in the text report, the JSON report, the README and the reference reports. It used to call the count exact, which invited reading it as a bill.
+- `--count anthropic` needs `--experimental`: it has only been tested against a mocked API.
+- The README sample installs the current release; the release that took the measurement is named only in the note under the table.
+- The README no longer implies a direction between o200k and Claude counts; it quotes what Anthropic's token-counting page does say.
+
+### Added
+
+- A warning when two tools share a name, in the text report and in `warnings` in the JSON report.
+
 ### Fixed
+
+- A tools/list result nested too deep for the SDK's validator is reported as such, not as "Maximum call stack size exceeded".
+- An invalid tool schema is reported by its first problem and a count of the rest, instead of a dump of every issue.
 
 - Counting is no longer quadratic on long runs of one character (10 KB of `a` took 6.5 s, 40 KB more than 80 s). The o200k merge now uses a priority queue over js-tiktoken's rank table; the ids are unchanged.
 - `--timeout` now bounds the whole run, counting included: o200k counting runs in a worker thread that is terminated at the deadline.

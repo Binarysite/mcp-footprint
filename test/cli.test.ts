@@ -117,7 +117,7 @@ test('--out writes the JSON report next to the text output', async () => {
 
 test('anthropic mode without a key fails before doing anything', async () => {
   const io = capture({});
-  assert.equal(await main(['--count', 'anthropic', '--', 'does-not-exist'], io), EXIT.error);
+  assert.equal(await main(['--count', 'anthropic', '--experimental', '--', 'does-not-exist'], io), EXIT.error);
   assert.match(io.err, /needs ANTHROPIC_API_KEY/);
 });
 
@@ -129,7 +129,7 @@ test('anthropic mode uses the key, model and base URL from the environment', asy
     return Promise.resolve(Response.json({ input_tokens: 5 + (body.tools?.length ?? 0) * 100 }));
   };
   const io = capture({ ANTHROPIC_API_KEY: 'k', ANTHROPIC_BASE_URL: 'https://proxy.example' }, { fetch: fakeFetch });
-  assert.equal(await main(['--count', 'anthropic', '--model', 'claude-x', '--json', '--from-json', await toolsFile()], io), EXIT.ok);
+  assert.equal(await main(['--count', 'anthropic', '--experimental', '--model', 'claude-x', '--json', '--from-json', await toolsFile()], io), EXIT.ok);
   const report = JSON.parse(io.out) as Report;
   assert.equal(report.total.tokens, 200);
   assert.equal(report.counter.model, 'claude-x');
@@ -138,7 +138,7 @@ test('anthropic mode uses the key, model and base URL from the environment', asy
 
 test('reports API errors as exit 2', async () => {
   const io = capture({ ANTHROPIC_API_KEY: 'k' }, { fetch: () => Promise.resolve(Response.json({ error: { message: 'nope' } }, { status: 400 })) });
-  assert.equal(await main(['--count', 'anthropic', '--from-json', await toolsFile()], io), EXIT.error);
+  assert.equal(await main(['--count', 'anthropic', '--experimental', '--from-json', await toolsFile()], io), EXIT.error);
   assert.match(io.err, /HTTP 400: nope/);
 });
 
@@ -164,7 +164,7 @@ test('error messages that echo untrusted text cannot carry escape sequences', as
 
 test('anthropic mode refuses an insecure base URL before any request', async () => {
   const io = capture({ ANTHROPIC_API_KEY: 'k', ANTHROPIC_BASE_URL: 'http://proxy.example' });
-  assert.equal(await main(['--count', 'anthropic', '--from-json', await toolsFile()], io), EXIT.error);
+  assert.equal(await main(['--count', 'anthropic', '--experimental', '--from-json', await toolsFile()], io), EXIT.error);
   assert.match(io.err, /https/);
 });
 
@@ -185,7 +185,7 @@ test('Ctrl-C interrupts anthropic mode', async () => {
         }),
     },
   );
-  assert.equal(await main(['--count', 'anthropic', '--from-json', await toolsFile()], io), EXIT.interrupted);
+  assert.equal(await main(['--count', 'anthropic', '--experimental', '--from-json', await toolsFile()], io), EXIT.interrupted);
 });
 
 test('--timeout bounds each anthropic request', async () => {
@@ -200,7 +200,7 @@ test('--timeout bounds each anthropic request', async () => {
         }),
     },
   );
-  assert.equal(await main(['--count', 'anthropic', '--timeout', '30', '--from-json', await toolsFile()], io), EXIT.error);
+  assert.equal(await main(['--count', 'anthropic', '--experimental', '--timeout', '30', '--from-json', await toolsFile()], io), EXIT.error);
   assert.match(io.err, /timed out after 30 ms/);
 });
 
@@ -229,4 +229,22 @@ test('--timeout also bounds counting', async () => {
   const io = capture();
   assert.equal(await main(['--timeout', '1', '--from-json', await toolsFile()], io), EXIT.error);
   assert.match(io.err, /timed out after 1 ms counting tokens/);
+});
+
+test('--count anthropic needs --experimental, and says why', async () => {
+  const io = capture({ ANTHROPIC_API_KEY: 'k' }, { fetch: () => Promise.reject(new Error('must not be called')) });
+  assert.equal(await main(['--count', 'anthropic', '--from-json', await toolsFile()], io), EXIT.error);
+  assert.match(io.err, /--count anthropic is experimental: it has been tested against a mocked API only.*add --experimental/s);
+  assert.throws(() => parseCli(['--experimental', '--from-json', 'x.json']), /--experimental only applies to --count anthropic/);
+});
+
+test('the o200k label says what the number is and is not', async () => {
+  const io = capture();
+  assert.equal(await main(['--json', '--from-json', await toolsFile()], io), EXIT.ok);
+  const label = "o200k_base tokens of each tool's JSON (a comparable size, not any provider's billed count)";
+  assert.equal((JSON.parse(io.out) as Report).counter.label, label);
+  const text = capture();
+  await main(['--from-json', await toolsFile()], text);
+  assert.ok(text.out.includes(`counted with ${label}`));
+  assert.doesNotMatch(text.out + USAGE, /exact/);
 });

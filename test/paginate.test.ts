@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { MAX_PAGES, paginate } from '../src/collect.js';
+import { describeSdkError, MAX_PAGES, paginate } from '../src/collect.js';
 import { FootprintError } from '../src/errors.js';
 
 test('follows nextCursor until it is absent', async () => {
@@ -43,4 +43,21 @@ test('a page with hundreds of thousands of items does not overflow the stack', a
   const big = Array.from({ length: 500_000 }, (_, i) => i);
   const result = await paginate('tools/list', () => Promise.resolve({ items: big }));
   assert.equal(result.items.length, 500_000);
+});
+
+test('describeSdkError keeps the first validation problem and passes other errors through', () => {
+  const invalid = (issues: unknown): Error => new Error(`Invalid result for tools/list: ${JSON.stringify(issues, null, 2)}`);
+  assert.equal(
+    describeSdkError(invalid([{ path: ['tools', 0, 'name'], message: 'Required' }])),
+    'Invalid result for tools/list: tools.0.name: Required',
+  );
+  assert.equal(
+    describeSdkError(invalid([{ message: 'Bad' }, { message: 'Worse' }])),
+    'Invalid result for tools/list: Bad (and 1 more problem)',
+  );
+  assert.equal(describeSdkError(invalid([{ path: [] }])), 'Invalid result for tools/list: invalid');
+  assert.equal(describeSdkError(invalid([])), 'Invalid result for tools/list: []');
+  assert.equal(describeSdkError(new Error('Invalid result for tools/list: [not json]')), 'Invalid result for tools/list: [not json]');
+  assert.equal(describeSdkError(new Error('Connection closed')), 'Connection closed');
+  assert.match(describeSdkError(new RangeError('Maximum call stack size exceeded')), /nested too deep/);
 });

@@ -198,3 +198,17 @@ test('a server that floods stdout without a newline fails fast with a clear mess
   assert.match(result.err, /server wrote more than 64 MB without ending a message; stopping it/);
   assert.ok(elapsed < 10_000, `took ${elapsed} ms`);
 });
+
+test('a schema too deep for the SDK to validate is a clear error', async () => {
+  const result = await run(['--', node, fixture('raw-server.mjs'), 'deep', '2000']);
+  assert.equal(result.code, EXIT.error);
+  assert.match(result.err, /tools\/list failed: the result is nested too deep for the MCP SDK to validate/);
+  assert.doesNotMatch(result.err, /Maximum call stack/);
+});
+
+test('an invalid inputSchema is reported by its first problem, not a dump', async () => {
+  const result = await run(['--', node, fixture('raw-server.mjs'), 'invalid']);
+  assert.equal(result.code, EXIT.error);
+  assert.match(result.err, /tools\/list failed: Invalid result for tools\/list: tools\.0\.inputSchema\.type: Invalid input: expected "object" \(and 59 more problems\)/);
+  assert.ok(result.err.length < 400, `${result.err.length} chars`);
+});

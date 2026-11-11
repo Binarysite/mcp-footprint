@@ -73,6 +73,10 @@ export function renderText(report: Report): string {
     lines.push('');
     lines.push(`budget     ${n(total.tokens)} of ${n(limit)} ${counter.unit}: ${verdict}`);
   }
+  if (report.warnings.length > 0) {
+    lines.push('');
+    for (const warning of report.warnings) lines.push(`warning: ${sanitize(warning, 2 * MAX_TEXT_WIDTH)}`);
+  }
   return `${lines.join('\n')}\n`;
 }
 
