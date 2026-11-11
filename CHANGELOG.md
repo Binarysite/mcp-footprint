@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- JSON report: `counter.exact` is replaced by `counter.tokenizer` (`"o200k_base"`, `"anthropic-count_tokens"`, or `null` for chars/4) and `counter.billed` (always `false`: no mode reproduces a bill). `exact: true` on the o200k count read as a promise about billing. Pre-1.0, so a minor-level shape change; a `--baseline` file written by 0.2.0 still loads, since only `counter.mode` is read from it.
+- Reference reports re-measured with this release; the counts are unchanged.
+
+### Fixed
+
+- Shutdown no longer replaces the real error with `unexpected error: kill EPERM`. macOS returns EPERM when the process group holds only zombies; it is now treated like ESRCH (already gone).
+- `--baseline`: tools that share a name are compared one to one instead of collapsing into the last one.
+
+### Added
+
+- Pagination stops with an error after 100,000 items across pages, so a server with endless pages cannot fill memory before `--timeout`.
+
 ## [0.2.0] - 2026-11-11
 
 ### Changed
