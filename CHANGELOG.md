@@ -2,12 +2,12 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.2.1] - 2026-11-11
 
 ### Changed
 
 - JSON report: `counter.exact` is replaced by `counter.tokenizer` (`"o200k_base"`, `"anthropic-count_tokens"`, or `null` for chars/4) and `counter.billed` (always `false`: no mode reproduces a bill). `exact: true` on the o200k count read as a promise about billing. Pre-1.0, so a minor-level shape change; a `--baseline` file written by 0.2.0 still loads, since only `counter.mode` is read from it.
-- Reference reports re-measured with this release; the counts are unchanged.
+- Reference reports re-measured with 0.2.1; the counts are unchanged.
 
 ### Fixed
 
@@ -65,6 +65,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Composite GitHub Action (`action.yml`) for a budget in CI.
 - Measured reports for four official reference servers, and a README table generated from them.
 
+[0.2.1]: https://github.com/Binarysite/mcp-footprint/releases/tag/v0.2.1
 [0.2.0]: https://github.com/Binarysite/mcp-footprint/releases/tag/v0.2.0
 [0.1.1]: https://github.com/Binarysite/mcp-footprint/releases/tag/v0.1.1
 [0.1.0]: https://github.com/Binarysite/mcp-footprint/releases/tag/v0.1.0
