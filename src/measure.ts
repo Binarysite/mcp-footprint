@@ -1,3 +1,4 @@
+import type { BaselineDiff } from './baseline.js';
 import type { Counter, CounterInfo } from './counters.js';
 import { FootprintError } from './errors.js';
 import { schemaShape, toToolDefinition, type McpToolLike } from './serialize.js';
@@ -44,6 +45,8 @@ export interface Report {
   prompts: ListMeasure | null;
   resources: ListMeasure | null;
   budget: { limit: number; over: boolean } | null;
+  /** The change against --baseline, or null without one. */
+  baseline: BaselineDiff | null;
   /** Problems worth fixing that do not stop the measurement. */
   warnings: string[];
 }
@@ -123,6 +126,7 @@ export async function measure(input: MeasureInput, counter: Counter): Promise<Re
     prompts: await measureList(input.prompts, counter, ['name', 'description', 'arguments']),
     resources: await measureList(input.resources, counter, ['uri', 'name', 'description', 'mimeType']),
     budget: null,
+    baseline: null,
     warnings: duplicateNames(definitions.map((d) => d.name)),
   };
 }

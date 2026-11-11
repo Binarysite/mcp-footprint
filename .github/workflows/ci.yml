@@ -72,8 +72,17 @@ jobs:
         with:
           from-json: test/fixtures/tools.json
           budget: '1000'
+      - name: Against a baseline
+        id: compared
+        uses: ./
+        with:
+          from-json: test/fixtures/tools.json
+          baseline: test/fixtures/baseline.json
+          budget: '1000'
       - name: Check outcomes
         env:
+          COMPARED_DELTA: ${{ steps.compared.outputs.delta }}
+          WITHIN_DELTA: ${{ steps.within.outputs.delta }}
           WITHIN_TOKENS: ${{ steps.within.outputs.tokens }}
           SAVED_TOKENS: ${{ steps.saved.outputs.tokens }}
           OVER_OUTCOME: ${{ steps.over.outcome }}
@@ -86,3 +95,5 @@ jobs:
           test "$OVER_OUTCOME" = failure
           test "$OVER_TOKENS" = "$WITHIN_TOKENS"
           test -s "$REPORT"
+          test "$COMPARED_DELTA" -gt 0
+          test -z "$WITHIN_DELTA"

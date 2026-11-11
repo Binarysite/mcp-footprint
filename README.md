@@ -49,6 +49,16 @@ npx github:Binarysite/mcp-footprint#v0.1.1 --from-json tools.json
 
 # Fail when the tool definitions cost more than 3,000 tokens
 npx github:Binarysite/mcp-footprint#v0.1.1 --budget 3000 -- node dist/index.js
+
+# Show what changed since a report saved earlier with --out
+npx github:Binarysite/mcp-footprint#v0.1.1 --baseline main.json -- node dist/index.js
+```
+
+With `--baseline`, the report ends with the change, size-limit style:
+
+```text
+baseline   +36 tokens (+10%) vs test/fixtures/baseline.json
+           search_issues +24; 1 tool added
 ```
 
 Everything after `--` is the server command, passed through untouched.
@@ -57,6 +67,7 @@ Everything after `--` is the server command, passed through untouched.
 | --- | --- |
 | `--count <mode>` | `o200k` (default), `anthropic` or `chars4` |
 | `--budget <tokens>` | exit 1 when the total is above this |
+| `--baseline <file>` | compare with an earlier `--json` report: total and per-tool change, also in `--json` as `baseline`. `--budget` still applies to the total |
 | `--json` | print the report as JSON |
 | `--out <file>` | also write the JSON report to a file |
 | `--save-tools <file>` | write the server's raw tools/list result, for `--from-json` later |
@@ -84,7 +95,7 @@ A composite action, used like size-limit. It needs Node.js 22 or newer on the ru
     budget: 3000
 ```
 
-The step fails when the total goes over `budget`, writes the report to the job summary, and sets the `tokens` and `report` (JSON path) outputs. Use `from-json` instead of `command` to measure a committed tools/list result. This repository's CI runs the action against its fixture server on every push, including a run that must fail.
+The step fails when the total goes over `budget`, writes the report to the job summary, and sets the `tokens` and `report` (JSON path) outputs. Give it `baseline: <path to an earlier report>` and the change against it heads the job summary and is set as the `delta` output; the budget still applies to the total. The action does not comment on pull requests, because that needs a token with write access; keep a baseline report from your default branch (for example as a committed file or a downloaded artifact) and pass its path. Use `from-json` instead of `command` to measure a committed tools/list result. This repository's CI runs the action against its fixture server on every push, including a run that must fail.
 
 ## Reference servers
 
