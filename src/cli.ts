@@ -1,6 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import { AnthropicCounter, DEFAULT_ANTHROPIC_MODEL } from './anthropic.js';
+import { diffBaseline, loadBaseline } from './baseline.js';
 import { collectFromServer } from './collect.js';
 import { Chars4Counter, O200kCounter, type CountMode, type Counter } from './counters.js';
 import { FootprintError, UsageError } from './errors.js';
@@ -21,6 +22,8 @@ reports how many tokens its tool definitions cost.
 Options:
   --count <mode>       o200k (default), anthropic, or chars4
   --budget <tokens>    exit 1 when the total is above this
+  --baseline <file>    compare with an earlier --json report: total and
+                       per-tool change (--budget still applies to the total)
   --json               print the report as JSON
   --out <file>         also write the JSON report to a file
   --save-tools <file>  write the server's tools/list result to a file
@@ -60,6 +63,7 @@ export interface Io {
 interface Options {
   count: CountMode;
   budget?: number;
+  baseline?: string;
   json: boolean;
   out?: string;
   saveTools?: string;
@@ -88,6 +92,7 @@ export function parseCli(argv: readonly string[]): Parsed {
       options: {
         count: { type: 'string', default: 'o200k' },
         budget: { type: 'string' },
+        baseline: { type: 'string' },
         json: { type: 'boolean', default: false },
         out: { type: 'string' },
         'save-tools': { type: 'string' },
@@ -132,6 +137,7 @@ export function parseCli(argv: readonly string[]): Parsed {
       command,
       ...(values.budget !== undefined && { budget: nonNegativeInteger(values.budget, '--budget') }),
       ...(values.out !== undefined && { out: values.out }),
+      ...(values.baseline !== undefined && { baseline: values.baseline }),
       ...(values['save-tools'] !== undefined && { saveTools: values['save-tools'] }),
       ...(fromJson !== undefined && { fromJson }),
     },
@@ -224,7 +230,10 @@ export async function main(argv: readonly string[], io: Io): Promise<number> {
     const { options } = parsed;
     // Build the counter first, so a missing API key fails before the server starts.
     counter = createCounter(options, io, started + options.timeoutMs);
-    const report = withBudget(await measure(await gather(options, io), counter), options.budget);
+    // Read the baseline before the server starts, so a bad path fails at once.
+    const baseline = options.baseline === undefined ? undefined : await loadBaseline(options.baseline);
+    let report = withBudget(await measure(await gather(options, io), counter), options.budget);
+    if (baseline && options.baseline !== undefined) report = { ...report, baseline: diffBaseline(baseline, report, options.baseline) };
     if (options.out !== undefined) await writeFile(options.out, renderJson(report));
     io.stdout(options.json ? renderJson(report) : renderText(report));
     return report.budget?.over ? EXIT.overBudget : EXIT.ok;

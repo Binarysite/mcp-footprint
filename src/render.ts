@@ -1,3 +1,4 @@
+import { deltaParts } from './baseline.js';
 import type { ListMeasure, Ranked, Report } from './measure.js';
 
 const fmt = new Intl.NumberFormat('en-US');
@@ -65,6 +66,13 @@ export function renderText(report: Report): string {
   if (extras.some((line) => line !== null)) {
     lines.push('');
     for (const line of extras) if (line !== null) lines.push(line);
+  }
+
+  if (report.baseline) {
+    const { total: change, details } = deltaParts(report.baseline);
+    lines.push('');
+    lines.push(`baseline   ${change} vs ${sanitize(report.baseline.path)}`);
+    if (details.length > 0) lines.push(`           ${details.map((d) => sanitize(d, 4 * MAX_TEXT_WIDTH)).join('; ')}`);
   }
 
   if (report.budget) {

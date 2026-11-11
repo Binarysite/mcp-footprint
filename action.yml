@@ -17,6 +17,10 @@ inputs:
   budget:
     description: Maximum total tokens for the tool definitions. The step fails above it.
     required: true
+  baseline:
+    description: Path to an earlier JSON report (from --json, --out or this action's report output). The step prints the total and per-tool change and writes it to the job summary. The budget still applies to the total.
+    required: false
+    default: ''
   count:
     description: o200k (default) or chars4. anthropic is experimental and not accepted here.
     required: false
@@ -37,6 +41,9 @@ outputs:
   report:
     description: Path to the JSON report.
     value: ${{ steps.measure.outputs.report }}
+  delta:
+    description: Change in total tokens against the baseline input; empty without one.
+    value: ${{ steps.measure.outputs.delta }}
 
 runs:
   using: composite
@@ -61,11 +68,15 @@ runs:
         MCPF_COMMAND: ${{ inputs.command }}
         MCPF_FROM_JSON: ${{ inputs.from-json }}
         MCPF_BUDGET: ${{ inputs.budget }}
+        MCPF_BASELINE: ${{ inputs.baseline }}
         MCPF_COUNT: ${{ inputs.count }}
         MCPF_TIMEOUT: ${{ inputs.timeout }}
       run: |
         report="$RUNNER_TEMP/mcp-footprint-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$RANDOM.json"
         args=(--budget "$MCPF_BUDGET" --count "$MCPF_COUNT" --timeout "$MCPF_TIMEOUT" --out "$report")
+        if [ -n "$MCPF_BASELINE" ]; then
+          args+=(--baseline "$MCPF_BASELINE")
+        fi
         if [ -n "$MCPF_FROM_JSON" ] && [ -n "$MCPF_COMMAND" ]; then
           echo "::error::set either command or from-json, not both"; exit 2
         elif [ -n "$MCPF_FROM_JSON" ]; then
@@ -85,7 +96,22 @@ runs:
           tokens=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).total.tokens)' "$report")
           echo "tokens=$tokens" >> "$GITHUB_OUTPUT"
           echo "report=$report" >> "$GITHUB_OUTPUT"
-          { echo '### mcp-footprint'; echo; echo '```text'; cat "$report.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          delta=$(node -e 'const b = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).baseline; console.log(b ? b.delta : "")' "$report")
+          echo "delta=$delta" >> "$GITHUB_OUTPUT"
+          {
+            echo '### mcp-footprint'
+            echo
+            # The baseline lines of the text report, first, so the change is the headline.
+            if [ -n "$delta" ]; then
+              echo '```text'
+              sed -n '/^baseline /,/^$/p' "$report.txt" | sed '/^$/d'
+              echo '```'
+              echo
+            fi
+            echo '```text'
+            cat "$report.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
         fi
         if [ "$status" -eq 1 ]; then
           echo "::error::tool definitions are over the budget of $MCPF_BUDGET tokens"

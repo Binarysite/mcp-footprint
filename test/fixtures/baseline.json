@@ -1,0 +1,103 @@
+{
+  "tool": "mcp-footprint",
+  "version": "0.1.1",
+  "source": {
+    "kind": "file",
+    "path": "test/fixtures/tools-before.json"
+  },
+  "server": null,
+  "counter": {
+    "mode": "o200k",
+    "unit": "o200k tokens",
+    "label": "o200k_base tokens of each tool's JSON (a comparable size, not any provider's billed count)",
+    "exact": true
+  },
+  "total": {
+    "tools": 3,
+    "tokens": 357,
+    "chars": 1621,
+    "pages": null
+  },
+  "overhead": 0,
+  "tools": [
+    {
+      "name": "bulk_import",
+      "tokens": 179,
+      "share": 0.5014,
+      "chars": 850,
+      "descriptionChars": 483,
+      "schemaChars": 312,
+      "schemaDepth": 4,
+      "schemaProperties": 4
+    },
+    {
+      "name": "search_issues",
+      "tokens": 137,
+      "share": 0.3838,
+      "chars": 582,
+      "descriptionChars": 35,
+      "schemaChars": 490,
+      "schemaDepth": 7,
+      "schemaProperties": 9
+    },
+    {
+      "name": "echo",
+      "tokens": 41,
+      "share": 0.1148,
+      "chars": 189,
+      "descriptionChars": 32,
+      "schemaChars": 109,
+      "schemaDepth": 3,
+      "schemaProperties": 1
+    }
+  ],
+  "offenders": {
+    "longestDescriptions": [
+      {
+        "name": "bulk_import",
+        "value": 483
+      },
+      {
+        "name": "search_issues",
+        "value": 35
+      },
+      {
+        "name": "echo",
+        "value": 32
+      }
+    ],
+    "deepestSchemas": [
+      {
+        "name": "search_issues",
+        "value": 7
+      },
+      {
+        "name": "bulk_import",
+        "value": 4
+      },
+      {
+        "name": "echo",
+        "value": 3
+      }
+    ],
+    "biggestSchemas": [
+      {
+        "name": "search_issues",
+        "value": 490
+      },
+      {
+        "name": "bulk_import",
+        "value": 312
+      },
+      {
+        "name": "echo",
+        "value": 109
+      }
+    ]
+  },
+  "prompts": null,
+  "resources": null,
+  "budget": null,
+  "baseline": null,
+  "warnings": []
+}

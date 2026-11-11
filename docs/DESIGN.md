@@ -70,6 +70,12 @@ Each file in reports/ holds the raw tools/list result next to the numbers, plus 
 
 The price is repository size: each report is tens of KB of JSON.
 
+## A baseline is an earlier report, not a stored state
+
+`--baseline` reads a report written by `--json` or `--out` (or a committed reference report) and compares totals and tools by name: changed tools by size of change, then added and removed ones. The two must have been counted in the same mode; mixing o200k with chars4 is refused rather than printed as a change. The budget is still checked against the total, so a baseline explains a failure but never excuses one.
+
+The action writes the change to the job summary and the `delta` output and stops there. Posting it as a pull-request comment would need a token that can write to the repository, which a measuring step should not hold. Where the baseline comes from is left to the workflow.
+
 ## The action builds from source
 
 `action.yml` runs `npm ci` in the action's checkout, and the `prepare` script compiles TypeScript. No compiled code is committed, and a release is a tag.
