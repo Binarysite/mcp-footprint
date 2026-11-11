@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { mock, test } from 'node:test';
 import type { JSONRPCMessage } from '@modelcontextprotocol/client';
 import { DEFAULT_MAX_MESSAGE_BYTES, ProcessTransport } from '../src/stdio.js';
 
@@ -102,4 +102,47 @@ test('shutdown can be given a shorter grace period', async () => {
   await transport.shutdown(100);
   const elapsed = Date.now() - started;
   assert.ok(elapsed < 1500, `took ${elapsed} ms`);
+});
+
+/** Makes signals to a process group fail with `code`, after really delivering them so nothing leaks. */
+function failGroupSignals(code: string): { mock: { restore(): void } } {
+  const real = process.kill.bind(process);
+  return mock.method(process, 'kill', (pid: number, signal?: string | number): true => {
+    if (pid < 0) {
+      if (code !== 'EINVAL') {
+        try {
+          real(pid, signal);
+        } catch {
+          // already gone
+        }
+      }
+      throw Object.assign(new Error(`kill ${code}`), { code });
+    }
+    return real(pid, signal);
+  });
+}
+
+test('shutdown resolves when signalling the group fails with EPERM or ESRCH', { skip: process.platform === 'win32' }, async () => {
+  for (const code of ['EPERM', 'ESRCH']) {
+    const transport = new ProcessTransport({ command: process.execPath, args: ['-e', 'process.stdin.resume()'], graceMs: 200 });
+    await transport.start();
+    const stub = failGroupSignals(code);
+    try {
+      await transport.shutdown();
+    } finally {
+      stub.mock.restore();
+    }
+  }
+});
+
+test('a signal error other than ESRCH or EPERM still surfaces', { skip: process.platform === 'win32' }, async () => {
+  const transport = new ProcessTransport({ command: process.execPath, args: ['-e', 'process.stdin.resume()'], graceMs: 200 });
+  await transport.start();
+  const stub = failGroupSignals('EINVAL');
+  try {
+    await assert.rejects(transport.shutdown(), /EINVAL/);
+  } finally {
+    stub.mock.restore();
+  }
+  await transport.close().catch(() => undefined);
 });
