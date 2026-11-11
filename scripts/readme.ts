@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderText } from '../src/render.js';
 import { VERSION } from '../src/version.js';
-import type { ReferenceReport } from './measure-reference.js';
+import { NOT_MEASURED, type ReferenceReport } from './measure-reference.js';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 export const README = join(root, 'README.md');
@@ -20,6 +20,8 @@ export const SAMPLE = 'server-memory';
 
 /** Facts about a server that change how its number reads. */
 const NOTES: Record<string, string> = {
+  'playwright-mcp':
+    'registers more tools when started with `--caps` (config, network, storage, devtools, vision, pdf, testing, per its README). It was measured with no flags, so they are not counted.',
   'server-everything':
     'registers five more tools for a client that declares roots, elicitation and sampling (`registerConditionalTools` in its `dist/tools/index.js`). mcp-footprint declares no client capabilities, so they are not counted.',
 };
@@ -56,6 +58,10 @@ export function renderTable(reports: Map<string, ReferenceReport>): string {
   lines.push('');
   lines.push(`Measured ${[...conditions].join('; ')}.`);
   for (const note of notes) lines.push('', note);
+  if (NOT_MEASURED.length > 0) {
+    lines.push('', 'Checked and not measured:', '');
+    for (const skipped of NOT_MEASURED) lines.push(`- \`${skipped.package}\` ${skipped.version}: ${skipped.reason}`);
+  }
   return lines.join('\n');
 }
 

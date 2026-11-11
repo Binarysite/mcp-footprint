@@ -1,4 +1,9 @@
-// Measures the official reference servers and writes reports/<name>.json.
+// Measures vendor-official MCP servers and writes reports/<name>.json.
+//
+// Only packages published under the vendor's own npm scope, whose
+// repository and maintainers were checked with `npm view <pkg> repository.url
+// maintainers` before they were added here, and only servers that list their
+// tools without credentials.
 //
 //   npm run measure:reference          (needs Node >= 24, the servers' engines)
 //
@@ -21,6 +26,8 @@ export interface ReferenceServer {
   bin: string;
   /** Arguments; "<workdir>" becomes the empty working directory. */
   args: string[];
+  /** What the server reports in initialize, when it is not the package version. */
+  serverVersion?: string;
 }
 
 export const SERVERS: ReferenceServer[] = [
@@ -39,6 +46,32 @@ export const SERVERS: ReferenceServer[] = [
     version: '2.1.1',
     bin: 'dist/index.js',
     args: [],
+  },
+  // microsoft/playwright-mcp. Reports the bundled Playwright version, not its own.
+  { id: 'playwright-mcp', package: '@playwright/mcp', version: '0.0.85', bin: 'cli.js', args: [], serverVersion: '1.66.0-alpha-2026-11-09' },
+  // makenotion/notion-mcp-server. Reports the Notion API spec version.
+  { id: 'notion-mcp-server', package: '@notionhq/notion-mcp-server', version: '2.6.1', bin: 'bin/cli.mjs', args: [], serverVersion: '1.0.0' },
+  // upstash/context7.
+  { id: 'context7-mcp', package: '@upstash/context7-mcp', version: '4.6.0', bin: 'dist/index.js', args: [] },
+];
+
+/** Vendor-official servers that were checked and not measured, and why. Shown under the README table. */
+export const NOT_MEASURED: { package: string; version: string; reason: string }[] = [
+  {
+    package: '@sentry/mcp-server',
+    version: '0.49.0',
+    reason: "needs credentials to list tools (exits during initialize: \"Not authenticated. Run 'sentry-mcp auth login' first.\")",
+  },
+  {
+    package: '@supabase/mcp-server-supabase',
+    version: '0.16.1',
+    reason: 'needs credentials to list tools (exits during initialize asking for a personal access token)',
+  },
+  { package: '@stripe/mcp', version: '0.3.4', reason: 'deprecated on npm ("No longer maintained"); not run' },
+  {
+    package: '@browserbasehq/mcp-server-browserbase',
+    version: '2.4.3',
+    reason: 'deprecated on npm in favour of `@browserbasehq/mcp`, which is deprecated too (3.0.0, "no longer maintained"); not run',
   },
 ];
 

@@ -78,6 +78,7 @@
     "prompts": null,
     "resources": null,
     "budget": null,
+    "baseline": null,
     "warnings": []
   },
   "toolsList": {

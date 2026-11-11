@@ -99,22 +99,34 @@ The step fails when the total goes over `budget`, writes the report to the job s
 
 ## Reference servers
 
-The official Node servers from the `@modelcontextprotocol` npm scope that start without credentials, pinned to exact versions. Each was installed with `--ignore-scripts` and started with an empty temp dir as its working directory and `HOME`, and only `PATH` in its environment. The filesystem server was given that empty dir as its one allowed directory. Each report holds the npm integrity hash, the full report and the raw tools/list result; a test re-measures the raw result and requires the committed numbers to match.
+Servers published under their vendor's own npm scope that list their tools without credentials, pinned to exact versions: the reference servers from `@modelcontextprotocol`, plus Microsoft's Playwright server, Notion's and Upstash's Context7. Before a package was added, `npm view <package> repository.url maintainers` was checked to confirm the repository and publishers belong to the vendor. Each was installed with `--ignore-scripts` and started with an empty temp dir as its working directory and `HOME`, and only `PATH` in its environment. The filesystem server was given that empty dir as its one allowed directory. Each report holds the npm integrity hash, the full report and the raw tools/list result; a test re-measures the raw result and requires the committed numbers to match.
 
 <!-- reference-table:start -->
 | Server | Version | Tools | o200k tokens | Most expensive tool | Report |
 | --- | ---: | ---: | ---: | --- | --- |
+| `@notionhq/notion-mcp-server` | 2.6.1 | 24 | 17,140 | `API-update-page-markdown` (1,267) | [notion-mcp-server.json](reports/notion-mcp-server.json) |
+| `@playwright/mcp` * | 0.0.85 | 25 | 3,917 | `browser_take_screenshot` (326) | [playwright-mcp.json](reports/playwright-mcp.json) |
 | `@modelcontextprotocol/server-filesystem` | 2.3.0 | 16 | 2,909 | `edit_file` (337) | [server-filesystem.json](reports/server-filesystem.json) |
 | `@modelcontextprotocol/server-memory` | 2.1.1 | 9 | 1,728 | `search_nodes` (289) | [server-memory.json](reports/server-memory.json) |
-| `@modelcontextprotocol/server-everything` * | 2.3.0 | 16 | 1,709 | `gzip-file-as-resource` (244) | [server-everything.json](reports/server-everything.json) |
+| `@modelcontextprotocol/server-everything` ** | 2.3.0 | 16 | 1,709 | `gzip-file-as-resource` (244) | [server-everything.json](reports/server-everything.json) |
+| `@upstash/context7-mcp` | 4.6.0 | 2 | 1,060 | `resolve-library-id` (607) | [context7-mcp.json](reports/context7-mcp.json) |
 | `@modelcontextprotocol/server-sequential-thinking` | 2.1.1 | 1 | 488 | `sequentialthinking` (488) | [server-sequential-thinking.json](reports/server-sequential-thinking.json) |
 
 Measured 2026-11-11, Node v24.22.2, o200k_base via js-tiktoken 1.0.21, mcp-footprint 0.1.1.
 
-\* `@modelcontextprotocol/server-everything` registers five more tools for a client that declares roots, elicitation and sampling (`registerConditionalTools` in its `dist/tools/index.js`). mcp-footprint declares no client capabilities, so they are not counted.
+\* `@playwright/mcp` registers more tools when started with `--caps` (config, network, storage, devtools, vision, pdf, testing, per its README). It was measured with no flags, so they are not counted.
+
+\*\* `@modelcontextprotocol/server-everything` registers five more tools for a client that declares roots, elicitation and sampling (`registerConditionalTools` in its `dist/tools/index.js`). mcp-footprint declares no client capabilities, so they are not counted.
+
+Checked and not measured:
+
+- `@sentry/mcp-server` 0.49.0: needs credentials to list tools (exits during initialize: "Not authenticated. Run 'sentry-mcp auth login' first.")
+- `@supabase/mcp-server-supabase` 0.16.1: needs credentials to list tools (exits during initialize asking for a personal access token)
+- `@stripe/mcp` 0.3.4: deprecated on npm ("No longer maintained"); not run
+- `@browserbasehq/mcp-server-browserbase` 2.4.3: deprecated on npm in favour of `@browserbasehq/mcp`, which is deprecated too (3.0.0, "no longer maintained"); not run
 <!-- reference-table:end -->
 
-Regenerate with `npm run measure:reference` (Node 24, the servers' minimum), then `npm run readme`. The other packages in the scope are SDK packages, developer tools, MCP Apps examples, or archived servers marked deprecated on npm, and were not run.
+Regenerate with `npm run measure:reference` (Node 24, the servers' minimum), then `npm run readme`. The other `@modelcontextprotocol` packages are SDK packages, developer tools, MCP Apps examples, or archived servers marked deprecated on npm, and were not run. A server that needs a token just to list its tools cannot be measured this way; it is listed under the table instead of being given credentials.
 
 ## How it counts
 

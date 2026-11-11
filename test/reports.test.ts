@@ -19,7 +19,7 @@ test('every pinned reference server has a report for that exact version', async 
     const { report } = await load(`${server.id}.json`);
     assert.equal(report.package, server.package);
     assert.equal(report.version, server.version);
-    assert.equal(report.report.server?.version, server.version);
+    assert.equal(report.report.server?.version, server.serverVersion ?? server.version);
     assert.match(report.integrity, /^sha512-/);
     assert.equal(report.report.counter.mode, 'o200k');
   }

@@ -15,6 +15,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - `--baseline <report.json>` compares with an earlier report: total and per-tool change, tools added and removed, in the text report and as `baseline` in `--json`. `--budget` still applies to the total.
 - Action: an optional `baseline` input. The change heads the job summary and is set as the `delta` output. No pull-request comment is posted.
+- Reference reports for `@playwright/mcp` 0.0.85, `@notionhq/notion-mcp-server` 2.6.1 and `@upstash/context7-mcp` 4.6.0. `@sentry/mcp-server` and `@supabase/mcp-server-supabase` need credentials to list tools; `@stripe/mcp` and the Browserbase servers are deprecated on npm. They are listed under the README table, not measured.
 - A warning when two tools share a name, in the text report and in `warnings` in the JSON report.
 
 ### Fixed
