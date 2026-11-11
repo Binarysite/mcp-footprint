@@ -4,7 +4,7 @@ bundlephobia for MCP servers: how many context tokens a server costs before you 
 
 <!-- sample-output:start -->
 ```text
-$ npx github:Binarysite/mcp-footprint#v0.2.0 -- npx -y @modelcontextprotocol/server-memory@2.1.1
+$ npx github:Binarysite/mcp-footprint#v0.2.1 -- npx -y @modelcontextprotocol/server-memory@2.1.1
 memory-server 2.1.1: 9 tools, 1 page
 counted with o200k_base tokens of each tool's JSON (a comparable size, not any provider's billed count)
 
@@ -42,16 +42,16 @@ Requires Node.js 22 or newer. The current reference servers require Node.js 24 t
 
 ```sh
 # Start a server over stdio, list its tools, stop it, print the report
-npx github:Binarysite/mcp-footprint#v0.2.0 -- npx -y @modelcontextprotocol/server-memory@2.1.1
+npx github:Binarysite/mcp-footprint#v0.2.1 -- npx -y @modelcontextprotocol/server-memory@2.1.1
 
 # Measure a saved tools/list result, with no process at all
-npx github:Binarysite/mcp-footprint#v0.2.0 --from-json tools.json
+npx github:Binarysite/mcp-footprint#v0.2.1 --from-json tools.json
 
 # Fail when the tool definitions cost more than 3,000 tokens
-npx github:Binarysite/mcp-footprint#v0.2.0 --budget 3000 -- node dist/index.js
+npx github:Binarysite/mcp-footprint#v0.2.1 --budget 3000 -- node dist/index.js
 
 # Show what changed since a report saved earlier with --out
-npx github:Binarysite/mcp-footprint#v0.2.0 --baseline main.json -- node dist/index.js
+npx github:Binarysite/mcp-footprint#v0.2.1 --baseline main.json -- node dist/index.js
 ```
 
 With `--baseline`, the report ends with the change, size-limit style:
@@ -89,7 +89,7 @@ A composite action, used like size-limit. It needs Node.js 22 or newer on the ru
   with:
     node-version: 22
 - run: npm ci && npm run build
-- uses: Binarysite/mcp-footprint@v0.2.0
+- uses: Binarysite/mcp-footprint@v0.2.1
   with:
     command: node dist/index.js
     budget: 3000
@@ -112,7 +112,7 @@ Servers published under their vendor's own npm scope that list their tools witho
 | `@upstash/context7-mcp` | 4.6.0 | 2 | 1,060 | `resolve-library-id` (607) | [context7-mcp.json](reports/context7-mcp.json) |
 | `@modelcontextprotocol/server-sequential-thinking` | 2.1.1 | 1 | 488 | `sequentialthinking` (488) | [server-sequential-thinking.json](reports/server-sequential-thinking.json) |
 
-Measured 2026-11-11, Node v24.22.2, o200k_base via js-tiktoken 1.0.21, mcp-footprint 0.2.0.
+Measured 2026-11-11, Node v24.22.2, o200k_base via js-tiktoken 1.0.21, mcp-footprint 0.2.1.
 
 \* `@playwright/mcp` registers more tools when started with `--caps` (config, network, storage, devtools, vision, pdf, testing, per its README). It was measured with no flags, so they are not counted.
 
