@@ -67,16 +67,30 @@ export function diffBaseline(baseline: BaselineReport, current: BaselineReport, 
       `baseline ${path} was counted with ${baseline.counter.mode}, this run with ${current.counter.mode}; compare like with like (use --count ${baseline.counter.mode})`,
     );
   }
-  const before = new Map(baseline.tools.map((tool) => [tool.name, tool.tokens]));
-  const after = new Map(current.tools.map((tool) => [tool.name, tool.tokens]));
+  // Tools are paired by name and by position among the tools of that name, so
+  // two tools that share a name are compared one to one instead of collapsing.
+  const keyed = (tools: BaselineReport['tools']): Map<string, { name: string; tokens: number }> => {
+    const seen = new Map<string, number>();
+    const map = new Map<string, { name: string; tokens: number }>();
+    for (const tool of tools) {
+      const index = seen.get(tool.name) ?? 0;
+      seen.set(tool.name, index + 1);
+      map.set(`${index}\u0000${tool.name}`, { name: tool.name, tokens: tool.tokens });
+    }
+    return map;
+  };
+  const before = keyed(baseline.tools);
+  const after = keyed(current.tools);
   const changed: ToolDelta[] = [];
   const added: { name: string; tokens: number }[] = [];
-  for (const [name, tokens] of after) {
-    const old = before.get(name);
-    if (old === undefined) added.push({ name, tokens });
-    else if (old !== tokens) changed.push({ name, before: old, after: tokens, delta: tokens - old });
+  for (const [key, now] of after) {
+    const old = before.get(key);
+    if (old === undefined) added.push({ name: now.name, tokens: now.tokens });
+    else if (old.tokens !== now.tokens) {
+      changed.push({ name: now.name, before: old.tokens, after: now.tokens, delta: now.tokens - old.tokens });
+    }
   }
-  const removed = [...before].filter(([name]) => !after.has(name)).map(([name, tokens]) => ({ name, tokens }));
+  const removed = [...before].filter(([key]) => !after.has(key)).map(([, old]) => ({ name: old.name, tokens: old.tokens }));
   const delta = current.total.tokens - baseline.total.tokens;
   const bySize = (a: { name: string }, b: { name: string }, x: number, y: number): number =>
     y - x || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
