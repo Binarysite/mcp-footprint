@@ -1,0 +1,66 @@
+{
+  "name": "mcp-footprint",
+  "version": "0.1.0",
+  "description": "Measure how many context tokens an MCP server's tool definitions cost, and fail CI when they grow past a budget.",
+  "type": "module",
+  "bin": {
+    "mcp-footprint": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.map",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepare": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "pretest": "tsc -p tsconfig.json",
+    "test": "node --test --enable-source-maps \"build/test/**/*.test.js\"",
+    "coverage": "tsc -p tsconfig.json && node --test --enable-source-maps --experimental-test-coverage --test-coverage-include=\"build/src/**\" --test-coverage-include=\"src/**\" --test-coverage-lines=90 --test-coverage-branches=85 --test-coverage-functions=90 \"build/test/**/*.test.js\"",
+    "readme": "node scripts/readme.mjs",
+    "measure:reference": "node scripts/measure-reference.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "tokens",
+    "context-window",
+    "tool-definitions",
+    "budget",
+    "ci"
+  ],
+  "author": "Alfredo Rosadilla",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Binarysite/mcp-footprint.git"
+  },
+  "homepage": "https://github.com/Binarysite/mcp-footprint#readme",
+  "bugs": {
+    "url": "https://github.com/Binarysite/mcp-footprint/issues"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/client": "2.4.0",
+    "js-tiktoken": "1.0.21"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@modelcontextprotocol/server": "2.4.0",
+    "@types/node": "22.20.5",
+    "eslint": "10.14.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.2"
+  }
+}
