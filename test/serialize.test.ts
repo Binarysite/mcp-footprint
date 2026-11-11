@@ -42,3 +42,14 @@ test('handles very wide arrays without exhausting the stack', () => {
   const wide = { enum: Array.from({ length: 200_000 }, (_, i) => i) };
   assert.equal(schemaShape(wide).depth, 2);
 });
+
+test('a 100k-deep schema is measured without overflowing the stack', () => {
+  let schema: Record<string, unknown> = {};
+  for (let i = 0; i < 100_000; i++) schema = { properties: { a: schema } };
+  const shape = schemaShape(schema);
+  assert.equal(shape.depth, 200_001);
+  assert.equal(shape.properties, 100_000);
+  let list: unknown = [];
+  for (let i = 0; i < 100_000; i++) list = [list];
+  assert.equal(schemaShape(list).depth, 100_001);
+});

@@ -1,5 +1,6 @@
 import type { Counter, CounterInfo } from './counters.js';
-import { schemaShape, serialize, toToolDefinition, type McpToolLike } from './serialize.js';
+import { FootprintError } from './errors.js';
+import { schemaShape, toToolDefinition, type McpToolLike } from './serialize.js';
 import { VERSION } from './version.js';
 
 export interface ToolMeasure {
@@ -58,18 +59,20 @@ const OFFENDERS = 3;
 
 export async function measure(input: MeasureInput, counter: Counter): Promise<Report> {
   const definitions = input.tools.map(toToolDefinition);
+  // Fail with a clear error before any counter (or API request) sees a schema too deep to serialize.
+  for (const definition of definitions) stringify(definition, definition.name);
   const counts = await counter.countTools(definitions);
   const total = counts.total;
   const tools = definitions
     .map((definition, i): ToolMeasure => {
       const tokens = counts.perTool[i] ?? 0;
-      const schemaJson = JSON.stringify(definition.input_schema);
+      const schemaJson = stringify(definition.input_schema, definition.name);
       const shape = schemaShape(definition.input_schema);
       return {
         name: definition.name,
         tokens,
         share: total > 0 ? Math.round((tokens / total) * 10_000) / 10_000 : 0,
-        chars: serialize(definition).length,
+        chars: stringify(definition, definition.name).length,
         descriptionChars: definition.description?.length ?? 0,
         schemaChars: schemaJson.length,
         schemaDepth: shape.depth,
@@ -101,6 +104,16 @@ export async function measure(input: MeasureInput, counter: Counter): Promise<Re
     resources: await measureList(input.resources, counter, ['uri', 'name', 'description', 'mimeType']),
     budget: null,
   };
+}
+
+/** JSON.stringify recurses, so a schema nested tens of thousands of levels deep throws RangeError. */
+function stringify(value: unknown, tool: string): string {
+  try {
+    return JSON.stringify(value);
+  } catch (error) {
+    if (error instanceof RangeError) throw new FootprintError(`tool "${tool}": schema is nested too deep to serialize`);
+    throw error;
+  }
 }
 
 /** Code-unit order, so results do not depend on the machine's locale. */
