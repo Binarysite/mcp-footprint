@@ -1,0 +1,88 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      # Runtime dependencies only, so an advisory in a dev tool cannot turn CI red on its own.
+      - run: npm audit --omit=dev --audit-level=high
+      # node:test with a floor of 95% lines, 90% branches, 95% functions on src/.
+      - run: npm run coverage
+      - name: Built CLI measures the fixture
+        run: |
+          npm run build
+          node dist/bin.js --budget 1000 --from-json test/fixtures/tools.json
+      - name: Package contains the bin
+        run: npm pack --dry-run 2>&1 | grep 'dist/bin.js'
+
+  action:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Within budget
+        id: within
+        uses: ./
+        with:
+          command: node test/fixtures/server.mjs
+          budget: '1000'
+      - name: Over budget
+        id: over
+        continue-on-error: true
+        uses: ./
+        with:
+          command: node test/fixtures/server.mjs --page-size 1
+          budget: '100'
+      - name: From a saved tools/list result
+        id: saved
+        uses: ./
+        with:
+          from-json: test/fixtures/tools.json
+          budget: '1000'
+      - name: Check outcomes
+        env:
+          WITHIN_TOKENS: ${{ steps.within.outputs.tokens }}
+          SAVED_TOKENS: ${{ steps.saved.outputs.tokens }}
+          OVER_OUTCOME: ${{ steps.over.outcome }}
+          OVER_TOKENS: ${{ steps.over.outputs.tokens }}
+          REPORT: ${{ steps.within.outputs.report }}
+        run: |
+          set -x
+          test "$WITHIN_TOKENS" -gt 100
+          test "$WITHIN_TOKENS" = "$SAVED_TOKENS"
+          test "$OVER_OUTCOME" = failure
+          test "$OVER_TOKENS" = "$WITHIN_TOKENS"
+          test -s "$REPORT"
