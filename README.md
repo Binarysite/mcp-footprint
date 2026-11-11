@@ -4,7 +4,7 @@ bundlephobia for MCP servers: how many context tokens a server costs before you 
 
 <!-- sample-output:start -->
 ```text
-$ npx github:Binarysite/mcp-footprint#v0.1.1 -- npx -y @modelcontextprotocol/server-memory@2.1.1
+$ npx github:Binarysite/mcp-footprint#v0.2.0 -- npx -y @modelcontextprotocol/server-memory@2.1.1
 memory-server 2.1.1: 9 tools, 1 page
 counted with o200k_base tokens of each tool's JSON (a comparable size, not any provider's billed count)
 
@@ -42,16 +42,16 @@ Requires Node.js 22 or newer. The current reference servers require Node.js 24 t
 
 ```sh
 # Start a server over stdio, list its tools, stop it, print the report
-npx github:Binarysite/mcp-footprint#v0.1.1 -- npx -y @modelcontextprotocol/server-memory@2.1.1
+npx github:Binarysite/mcp-footprint#v0.2.0 -- npx -y @modelcontextprotocol/server-memory@2.1.1
 
 # Measure a saved tools/list result, with no process at all
-npx github:Binarysite/mcp-footprint#v0.1.1 --from-json tools.json
+npx github:Binarysite/mcp-footprint#v0.2.0 --from-json tools.json
 
 # Fail when the tool definitions cost more than 3,000 tokens
-npx github:Binarysite/mcp-footprint#v0.1.1 --budget 3000 -- node dist/index.js
+npx github:Binarysite/mcp-footprint#v0.2.0 --budget 3000 -- node dist/index.js
 
 # Show what changed since a report saved earlier with --out
-npx github:Binarysite/mcp-footprint#v0.1.1 --baseline main.json -- node dist/index.js
+npx github:Binarysite/mcp-footprint#v0.2.0 --baseline main.json -- node dist/index.js
 ```
 
 With `--baseline`, the report ends with the change, size-limit style:
@@ -89,7 +89,7 @@ A composite action, used like size-limit. It needs Node.js 22 or newer on the ru
   with:
     node-version: 22
 - run: npm ci && npm run build
-- uses: Binarysite/mcp-footprint@v0.1.1
+- uses: Binarysite/mcp-footprint@v0.2.0
   with:
     command: node dist/index.js
     budget: 3000
@@ -140,7 +140,7 @@ Prompts and resources are listed and counted when a server advertises them, but 
 
 ## Limits
 
-- stdio only. HTTP and SSE transports are out of scope for v0.1.
+- stdio only. HTTP and SSE transports are out of scope for now.
 - A single tool definition over 64 KB of JSON is refused (exit 2), and a server that writes 64 MB without a newline is stopped. Real servers are far below both.
 - Tokenizers differ, so an o200k number is not a Claude number. Anthropic's [token-counting page](https://platform.claude.com/docs/en/build-with-claude/token-counting) gives no comparison with o200k. It does say that Claude Opus 4.7 and later use a newer tokenizer, on which the same input produces "approximately 30 percent more tokens" than on earlier Claude models, so even two Claude models disagree. Compare servers with one mode, not across modes, and do not convert between them.
 - Vendor system-prompt overhead for tool use is not included, except in `anthropic` mode's difference.

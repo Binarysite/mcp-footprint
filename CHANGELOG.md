@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.2.0] - 2026-11-11
 
 ### Changed
 
@@ -22,7 +22,6 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - A tools/list result nested too deep for the SDK's validator is reported as such, not as "Maximum call stack size exceeded".
 - An invalid tool schema is reported by its first problem and a count of the rest, instead of a dump of every issue.
-
 - Counting is no longer quadratic on long runs of one character (10 KB of `a` took 6.5 s, 40 KB more than 80 s). The o200k merge now uses a priority queue over js-tiktoken's rank table; the ids are unchanged.
 - `--timeout` now bounds the whole run, counting included: o200k counting runs in a worker thread that is terminated at the deadline.
 - A tool definition over 64 KB of JSON is refused with exit 2.
@@ -50,5 +49,6 @@ All notable changes to this project are documented here. The format follows [Kee
 - Composite GitHub Action (`action.yml`) for a budget in CI.
 - Measured reports for four official reference servers, and a README table generated from them.
 
+[0.2.0]: https://github.com/Binarysite/mcp-footprint/releases/tag/v0.2.0
 [0.1.1]: https://github.com/Binarysite/mcp-footprint/releases/tag/v0.1.1
 [0.1.0]: https://github.com/Binarysite/mcp-footprint/releases/tag/v0.1.0
