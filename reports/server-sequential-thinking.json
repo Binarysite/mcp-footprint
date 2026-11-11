@@ -1,0 +1,194 @@
+{
+  "package": "@modelcontextprotocol/server-sequential-thinking",
+  "version": "2.1.1",
+  "integrity": "sha512-yvj9eotCoXX7BLmyOKdajnCYB5vgeCS3YwtEU0wCIcVgl+xvCdBtjkd0CTA45Ljh2+Iv1538n28VAnrstps1Tg==",
+  "measuredAt": "2026-11-11",
+  "node": "v24.22.2",
+  "tokenizer": "o200k_base via js-tiktoken 1.0.21",
+  "launch": {
+    "command": [
+      "node",
+      "<install>/node_modules/@modelcontextprotocol/server-sequential-thinking/dist/index.js"
+    ],
+    "cwd": "<workdir>",
+    "env": [
+      "PATH",
+      "HOME=<workdir>"
+    ]
+  },
+  "report": {
+    "tool": "mcp-footprint",
+    "version": "0.1.0",
+    "source": {
+      "kind": "stdio",
+      "command": [
+        "node",
+        "<install>/node_modules/@modelcontextprotocol/server-sequential-thinking/dist/index.js"
+      ]
+    },
+    "server": {
+      "name": "sequential-thinking-server",
+      "version": "2.1.1"
+    },
+    "counter": {
+      "mode": "o200k",
+      "unit": "o200k tokens",
+      "label": "o200k_base: exact token count of each tool's JSON definition",
+      "exact": true
+    },
+    "total": {
+      "tools": 1,
+      "tokens": 488,
+      "chars": 2229,
+      "pages": 1
+    },
+    "overhead": 0,
+    "tools": [
+      {
+        "name": "sequentialthinking",
+        "tokens": 488,
+        "share": 1,
+        "chars": 2229,
+        "descriptionChars": 1009,
+        "schemaChars": 1142,
+        "schemaDepth": 4,
+        "schemaProperties": 9
+      }
+    ],
+    "offenders": {
+      "longestDescriptions": [
+        {
+          "name": "sequentialthinking",
+          "value": 1009
+        }
+      ],
+      "deepestSchemas": [
+        {
+          "name": "sequentialthinking",
+          "value": 4
+        }
+      ],
+      "biggestSchemas": [
+        {
+          "name": "sequentialthinking",
+          "value": 1142
+        }
+      ]
+    },
+    "prompts": null,
+    "resources": null,
+    "budget": null
+  },
+  "toolsList": {
+    "tools": [
+      {
+        "name": "sequentialthinking",
+        "title": "Sequential Thinking",
+        "description": "A detailed tool for dynamic and reflective problem-solving through thoughts.\nEach thought can build on, question, or revise previous insights as understanding deepens.\n\nWhen to use this tool:\n- Breaking down complex problems into steps\n- Planning and design with room for revision\n- Analysis that might need course correction\n- Problems where the full scope might not be clear initially\n- Tasks that need to maintain context over multiple steps\n- Situations where irrelevant information needs to be filtered out\n\nYou should:\n1. Estimate totalThoughts up front and adjust it up or down as you go; thoughtNumber may exceed it\n2. Question or revise earlier thoughts (isRevision with revisesThought), or branch (branchFromThought with branchId)\n3. Express uncertainty, and ignore information irrelevant to the current step\n4. Generate a solution hypothesis, verify it against the earlier steps, and repeat until satisfied\n5. Set nextThoughtNeeded to false only when truly done and a satisfactory answer is reached",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "thought": {
+              "type": "string",
+              "description": "Your current thinking step"
+            },
+            "nextThoughtNeeded": {
+              "description": "Whether another thought step is needed",
+              "type": [
+                "boolean",
+                "string"
+              ]
+            },
+            "thoughtNumber": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991,
+              "description": "Current thought number (numeric value, e.g., 1, 2, 3)"
+            },
+            "totalThoughts": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991,
+              "description": "Estimated total thoughts needed (numeric value, e.g., 5, 10)"
+            },
+            "isRevision": {
+              "description": "Whether this revises previous thinking",
+              "type": [
+                "boolean",
+                "string"
+              ]
+            },
+            "revisesThought": {
+              "description": "Which thought is being reconsidered",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "branchFromThought": {
+              "description": "Branching point thought number",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "branchId": {
+              "description": "Branch identifier",
+              "type": "string"
+            },
+            "needsMoreThoughts": {
+              "description": "If more thoughts are needed",
+              "type": [
+                "boolean",
+                "string"
+              ]
+            }
+          },
+          "required": [
+            "thought",
+            "nextThoughtNeeded",
+            "thoughtNumber",
+            "totalThoughts"
+          ],
+          "$schema": "https://json-schema.org/draft/2020-12/schema"
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "thoughtNumber": {
+              "type": "number"
+            },
+            "totalThoughts": {
+              "type": "number"
+            },
+            "nextThoughtNeeded": {
+              "type": "boolean"
+            },
+            "branches": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "thoughtHistoryLength": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "thoughtNumber",
+            "totalThoughts",
+            "nextThoughtNeeded",
+            "branches",
+            "thoughtHistoryLength"
+          ],
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        }
+      }
+    ]
+  }
+}
