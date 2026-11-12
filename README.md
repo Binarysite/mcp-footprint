@@ -167,4 +167,4 @@ npm run lint
 
 ## License
 
-Built with Claude Code; the design decisions and reviews are mine. MIT, copyright AURELIAI SpA.
+Built with Claude Code; the design decisions and reviews are mine. MIT, copyright Alfredo Rosadilla.
