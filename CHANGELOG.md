@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- Copyright holder is now Alfredo Rosadilla.
 - README: mcp-footprint runs on Node.js 22 or newer, while the `@modelcontextprotocol` reference servers (including the sample's) need Node.js 24; said next to the sample command and in the measurement section. Action examples are pinned by commit SHA, checked against `ci.yml` by a test. Notes that the project is built with Claude Code.
 
 ## [0.2.1] - 2026-11-11
